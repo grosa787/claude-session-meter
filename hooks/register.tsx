@@ -161,10 +161,10 @@ const cardSvg = (s: Stats, nowMs: number) => {
   const total = s.input + s.cacheRead + s.cacheWrite
   const hit = total > 0 ? Math.round((s.cacheRead / total) * 100) : 0
   const parts: [string, number, string][] = [
-    ['Ввод', s.input, BLUE],
-    ['Вывод', s.output, PINK],
-    ['Кэш прочитан', s.cacheRead, GREEN],
-    ['Кэш записан', s.cacheWrite, ORANGE],
+    ['Input', s.input, BLUE],
+    ['Output', s.output, PINK],
+    ['Cache read', s.cacheRead, GREEN],
+    ['Cache write', s.cacheWrite, ORANGE],
   ]
   const sum = Math.max(1, parts.reduce((a, p) => a + p[1], 0))
   const BAR = 228
@@ -179,16 +179,16 @@ const cardSvg = (s: Stats, nowMs: number) => {
     .join('\n')
   return `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="292" viewBox="0 0 264 292" ${FONT}>
 <rect x="0.5" y="0.5" width="263" height="291" rx="6" fill="#262624" stroke="${LINE}"/>
-<text x="18" y="30" font-size="12" fill="${DIM}">Эта сессия</text>
+<text x="18" y="30" font-size="12" fill="${DIM}">This session</text>
 <text x="246" y="32" font-size="18" font-weight="700" fill="${TEXT}" text-anchor="end" ${NUM}>$${s.usd.toFixed(4)}</text>
 <line x1="18" y1="46" x2="246" y2="46" stroke="${LINE}"/>
-<text x="18" y="70" font-size="12" fill="${DIM}">Кэш · TTL ${s.ttl === '1h' ? '1 час' : '5 мин'}</text>
+<text x="18" y="70" font-size="12" fill="${DIM}">Cache · TTL ${s.ttl === '1h' ? '1 h' : '5 min'}</text>
 <g ${MONO}>${timeSvg(R0, 246, 71, 15, TEXT, 700)}</g>
 ${drainBar(18, 80, BAR, 8, 2, R0, ttl)}
 <line x1="18" y1="98" x2="246" y2="98" stroke="${LINE}"/>
 ${rows}
 <line x1="18" y1="262" x2="246" y2="262" stroke="${LINE}"/>
-<text x="18" y="281" font-size="11" fill="${DIM}">Попадание в кэш ${hit}% · запросов ${n(s.steps)}</text>
+<text x="18" y="281" font-size="11" fill="${DIM}">Cache hit ${hit}% · ${n(s.steps)} requests</text>
 </svg>`
 }
 

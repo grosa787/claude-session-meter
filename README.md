@@ -1,14 +1,60 @@
+<div align="center">
+
 # session-meter
 
-A live strip above the Claude Code prompt that shows what the session costs, how long the prompt cache will live, and how many tokens went where, with a row of small animated pixel Clodies that run while Claude is working.
+**See what your Claude Code session costs, when the prompt cache dies, and where your tokens go.**
+A live strip above the prompt, a hover card with the details, and six little pixel Clodies that run while Claude works.
 
-## What you get
+![License: MIT](https://img.shields.io/badge/license-MIT-d97757)
+![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757)
+![Surface: Desktop](https://img.shields.io/badge/surface-Desktop-4b4a46)
 
-- **Cost and cache countdown.** Session cost in dollars, plus a bar and a clock that drain to zero when the prompt cache expires (1 hour by default; `/meter 5m` switches to the 5-minute cache). The countdown animates inside the picture, so the strip is not redrawn every second.
-- **Token statistics.** `IN`, `OUT` and `CACHE` (cache read) for the whole session, abbreviated as K / M / B. Hover the strip for a card with exact numbers, cache-write tokens, cache hit rate and request count.
-- **Clodies.** Six pixel Clodies stand in an even row. While Claude answers they run to the right in a line, and when it finishes they slow down smoothly into the row again. Each has its own idle routine, they sleep when the cache has gone cold, and after five idle minutes they pass a wave along the row and shimmer once a minute.
-- **A Clodie for the reasoning level.** The sixth one changes with the effort level: a cloud for low, a thought bubble for medium, headphones for high, lightning for xhigh, a crown for max, and an iridescent body when ultracode is on.
-- `/meter` opens the same card in a pane. `/meter 1h`, `/meter 5m` and `/meter reset` set the cache lifetime or reset the token counters.
+<img src="docs/strip.png" alt="The session-meter strip above the Claude Code prompt" width="900">
+
+</div>
+
+---
+
+## Features
+
+### The strip
+
+| Segment | What it shows |
+| --- | --- |
+| `IN` | Input tokens for the session (uncached) |
+| `OUT` | Output tokens |
+| `CACHE` | Tokens read from the prompt cache |
+| `$` | What the session has cost so far |
+| bar + clock | The prompt cache draining to zero — 1 hour by default, `/meter 5m` for the 5‑minute cache |
+
+Numbers are abbreviated as **K / M / B**. Every segment has a fixed width, so nothing jumps when the numbers change.
+The countdown runs *inside* the picture, so the strip is never redrawn on a timer.
+
+### Hover for the full picture
+
+Hover the strip and a card opens above it with exact counts, cache‑write tokens, cache hit rate and the number of requests. `/meter` shows the same card in a pane.
+
+<div align="center">
+<img src="docs/card.png" alt="The hover card" width="320">
+</div>
+
+### Clodies
+
+Six pixel Clodies live on the left of the strip.
+
+- **Working** – they run to the right in a line, one after another, and re‑enter from the left.
+- **Done** – they keep walking, slowing down smoothly, and settle into an even row.
+- **Standing** – each has its own routine: a double jump, waving in turns, swaying, stretching, a turn‑around with a little heart.
+- **Cache gone cold** – they fall asleep.
+- **Five idle minutes** – they pass a wave along the row, and shimmer in turn once a minute.
+
+### The sixth Clodie shows your reasoning level
+
+<div align="center">
+<img src="docs/levels.png" alt="Reasoning level Clodies: low, medium, high, xhigh, max, ultracode" width="720">
+</div>
+
+---
 
 ## Install
 
@@ -18,21 +64,33 @@ In a Claude Code session:
 /plugin install session-meter --marketplace grosa787/claude-session-meter
 ```
 
-From a shell:
+or from a shell:
 
 ```
 claude plugin install session-meter --marketplace grosa787/claude-session-meter
 ```
 
-Restart open sessions afterwards.
+Open sessions need a restart to pick it up.
 
-## Notes
+## Commands
 
-- The strip, the Clodies and the hover card are drawn as SVG, so they appear in Claude Code Desktop. On a terminal the mod falls back to a plain text line and hover card without the Clodies.
-- The reasoning level is read from your settings and from each request. Max is not stored in settings, so it shows after the first request following the switch, or when `effortLevel` disappears from settings.
-- Ultracode is detected from the `ultracode` setting or from the word `ultracode` in a prompt (for that turn only), because Claude Code does not expose the mode to mods otherwise.
-- Token counts start from zero each time the mod loads; the cost is read from the session.
+| Command | Does |
+| --- | --- |
+| `/meter` | Opens the stats card in a pane |
+| `/meter 1h` / `/meter 5m` | Sets the cache lifetime used for the countdown |
+| `/meter reset` | Resets the token counters |
+
+## Good to know
+
+- The strip, the Clodies and the card are SVG, so they appear in **Claude Code Desktop**. On a terminal the mod falls back to a plain text line and hover card, without the Clodies.
+- **Reasoning level** is read from your settings and from each request. Max is not stored in settings, so it shows once `effortLevel` disappears from them or after the first request following the switch.
+- **Ultracode** is detected from the `ultracode` setting, or from the word `ultracode` in a prompt (for that turn). Claude Code does not expose the mode to mods in any other way.
+- Token counters start from zero whenever the mod loads; the cost is read from the session itself.
+
+## How it works
+
+The mod is a single hooks module (`hooks/register.tsx`). It listens to model responses for token usage and to session measurements for cost, keeps them in the mod's state, and draws the strip into the band above the prompt. All animation is SVG/SMIL, so the only redraws happen when something actually changes.
 
 ## License
 
-MIT
+MIT © grosa787
