@@ -7,6 +7,7 @@ const PANE = 'session-meter'
 const empty: Stats = {
   steps: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
   lastAt: 0, ttl: '1h', usd: 0, now: 0, frame: 0, busy: false, hist: [], effort: 'medium', ultra: false, limitResetAt: 0, limitPct: 0,
+  ctxTokens: 0, ctxWindow: 0, goals: 0, goalAt: 0, fx: null, longTool: false, intent: '',
 }
 const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
   shape: 'stats-4',
@@ -111,8 +112,6 @@ const drainBar = (x: number, y: number, w: number, h: number, rx: number, R0: nu
 
 // The strip in the band: IN, OUT and CACHE-read counts, then cost, cache bar
 // and time left. Flat rectangles in one row of fixed widths.
-// width of the strip: without / with the 5-hour limit segment (see pillSvg)
-const pillWidth = (hasLimit: boolean) => (hasLimit ? 602 : 515)
 const LEVEL_LABEL: Record<string, string> = { low: 'LOW', medium: 'MED', high: 'HIGH', xhigh: 'XHIGH', max: 'MAX' }
 const LEVEL_COLOR: Record<string, string> = {
   low: '#a1a1aa', medium: BLUE, high: GREEN, xhigh: '#facc15', max: PINK,
@@ -132,44 +131,50 @@ const pillSvg = (s: Stats, nowMs: number) => {
   const ttl = ttlSec(s)
   const R0 = remaining(s, nowMs)
   const H = 30
-  const chips: [string, number, string][] = [
-    ['IN', s.input, BLUE],
-    ['OUT', s.output, PINK],
-    ['CACHE', s.cacheRead, GREEN],
+  // context fill as "used/windowk" in thousands, e.g. 120/1000k
+  const kk = (v: number) => String(Math.round(v / 1000))
+  const hasCtx = (s.ctxWindow ?? 0) > 0
+  const ctxPct = hasCtx ? ((s.ctxTokens ?? 0) / s.ctxWindow) * 100 : 0
+  const ctxColor = ctxPct < 60 ? GREEN : ctxPct < 85 ? '#facc15' : WARN
+  const chips: [string, string, string, number][] = [
+    ['IN', short(s.input), BLUE, 5],
+    ['OUT', short(s.output), PINK, 5],
+    ['CACHE', short(s.cacheRead), GREEN, 5],
   ]
+  if (hasCtx) chips.push(['CTX', `${kk(s.ctxTokens ?? 0)}/${kk(s.ctxWindow)}k`, ctxColor, 9])
   let body = ''
   let x = 0
-  for (const [label, v, c] of chips) {
-    const w = Math.round(22 + (label.length + 1 + 6) * CW + 10)
-    body += `<rect x="${x + 10}" y="12" width="6" height="6" rx="1.5" fill="${c}"/>
-<text x="${x + 22}" y="19.5" font-size="12" fill="${DIM}">${label}</text>
-<text x="${x + w - 10}" y="19.5" font-size="12" font-weight="600" fill="${TEXT}" text-anchor="end">${short(v)}</text>
+  for (const [label, value, c, room] of chips) {
+    const w = Math.round(19 + (label.length + 1 + room) * CW + 8)
+    body += `<rect x="${x + 8}" y="12" width="6" height="6" rx="1.5" fill="${c}"/>
+<text x="${x + 19}" y="19.5" font-size="12" fill="${DIM}">${label}</text>
+<text x="${x + w - 8}" y="19.5" font-size="12" font-weight="600" fill="${TEXT}" text-anchor="end">${value}</text>
 <line x1="${x + w}" y1="6" x2="${x + w}" y2="${H - 6}" stroke="${LINE}"/>`
     x += w
   }
   const dot = s.busy
-    ? `<rect x="${x + 10}" y="12" width="6" height="6" rx="1.5" fill="${ACCENT}"><animate attributeName="opacity" values="1;0.3;1" dur="1.4s" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite"/></rect>`
-    : `<rect x="${x + 10}" y="12" width="6" height="6" rx="1.5" fill="${stateColor(R0, ttl)}">${stateSets(R0, ttl)}</rect>`
-  const bx = x + 22 + 7 * CW + 8
-  const tEnd = bx + 56 + 12 + 5 * CW
+    ? `<rect x="${x + 8}" y="12" width="6" height="6" rx="1.5" fill="${ACCENT}"><animate attributeName="opacity" values="1;0.3;1" dur="1.4s" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite"/></rect>`
+    : `<rect x="${x + 8}" y="12" width="6" height="6" rx="1.5" fill="${stateColor(R0, ttl)}">${stateSets(R0, ttl)}</rect>`
+  const bx = x + 19 + 6 * CW + 6
+  const tEnd = bx + 48 + 10 + 5 * CW
   body += `${dot}
-<text x="${x + 22}" y="19.5" font-size="12" font-weight="600" fill="${TEXT}">$${s.usd.toFixed(2)}</text>
-${drainBar(Math.round(bx), 12, 56, 6, 1.5, R0, ttl)}
+<text x="${x + 19}" y="19.5" font-size="12" font-weight="600" fill="${TEXT}">$${s.usd.toFixed(2)}</text>
+${drainBar(Math.round(bx), 12, 48, 6, 1.5, R0, ttl)}
 ${timeSvg(R0, Math.round(tEnd), 19.5, 12, TEXT, 400)}`
   // the 5-hour limit: time until the window resets, and how much of it is used
   const hasLimit = (s.limitResetAt ?? 0) > 0
-  let W = Math.round(tEnd + 12)
+  let W = Math.round(tEnd + 10)
   if (hasLimit) {
     const R1 = (s.limitResetAt - nowMs) / 1000
     const pct = s.limitPct ?? 0
     const lc = pct < 60 ? GREEN : pct < 85 ? '#facc15' : WARN
-    const xd = Math.round(tEnd + 12)
-    const lEnd = xd + 22 + 2 * CW + 10 + 4 * CW
+    const xd = Math.round(tEnd + 10)
+    const lEnd = xd + 19 + 2 * CW + 8 + 4 * CW
     body += `<line x1="${xd}" y1="6" x2="${xd}" y2="${H - 6}" stroke="${LINE}"/>
-<rect x="${xd + 10}" y="12" width="6" height="6" rx="1.5" fill="${lc}"/>
-<text x="${xd + 22}" y="19.5" font-size="12" fill="${DIM}">5H</text>
+<rect x="${xd + 8}" y="12" width="6" height="6" rx="1.5" fill="${lc}"/>
+<text x="${xd + 19}" y="19.5" font-size="12" fill="${DIM}">5H</text>
 ${timeSvg(R1, Math.round(lEnd), 19.5, 12, TEXT, 400, true, '0:00')}`
-    W = Math.round(lEnd + 12)
+    W = Math.round(lEnd + 10)
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ${MONO}>
 ${body}
@@ -266,7 +271,19 @@ const initPhase = (i: number, width: number) => rowPlace(i, width) / SPEED
 // and how many seconds ago it began.
 type Settle = { s: number[]; h: number[]; age: number }
 
-const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: number, effort: string, ultra: boolean, settle: Settle | null = null, bored: number | null = null) => {
+// What the Clodies are reacting to: a mood after the last answer (error / tests
+// passed / a round sum spent), a goal for the footballer, a long tool call (an
+// umbrella), what you asked for (a magnifier or a hammer) and the time of day.
+type Fx = {
+  mood: { kind: 'sad' | 'cheer' | 'party'; age: number } | null
+  goal: { age: number } | null
+  goals: number
+  umbrella: boolean
+  intent: string
+  outfit: string
+}
+
+const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: number, effort: string, ultra: boolean, settle: Settle | null = null, bored: number | null = null, fx: Fx | null = null) => {
   const U = 2
   const G = LANE_H - 2
   const DARK = '#1f1f1e'
@@ -282,6 +299,15 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     return `<animateTransform attributeName="transform" type="${type}" values="${vals}" calcMode="spline" ${kt ? `keyTimes="${kt}"` : ''} keySplines="${sp.join(';')}" dur="${dur.toFixed(3)}s" begin="${(-begin).toFixed(3)}s" repeatCount="indefinite"/>`
   }
   const wrap = (inner: string, anim = '') => `<g>${anim}${inner}</g>`
+  // the same, but it plays `count` times and is over: it ends by itself, so a
+  // picture that is never redrawn still returns to rest
+  const once = (type: string, vals: string, dur: number, age: number, count: number, kt = '', ease: string | string[] = IO) => {
+    const k = vals.split(';').length - 1
+    const sp = Array.isArray(ease) ? ease : Array(k).fill(ease)
+    return `<animateTransform attributeName="transform" type="${type}" values="${vals}" calcMode="spline" ${kt ? `keyTimes="${kt}"` : ''} keySplines="${sp.join(';')}" dur="${dur.toFixed(3)}s" begin="${(-age).toFixed(3)}s" repeatCount="${count}"/>`
+  }
+  const mood = !run && !sleep && fx ? fx.mood : null
+  const goalFx = !run && !sleep && fx ? fx.goal : null
   // After BORED_AFTER seconds of standing around they start passing a wave along
   // the row (left to right) and, once a minute, shimmer in turn. The animations
   // carry their own start times, so no redraw is needed when the mark is reached.
@@ -333,7 +359,10 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     }
     const arm = (col: number, side: number) => {
       let a = ''
-      if (run) a = tf('translate', '0 0;0 -4;0 0', 0.4, ph + side * 0.2)
+      if (goalFx && i === 6) a = once('translate', '0 -5;0 -2;0 -5', 0.35, goalFx.age, 8)
+      else if (mood && mood.kind !== 'sad') a = once('translate', '0 -5;0 -2;0 -5', 0.3, mood.age, 9)
+      else if (mood) a = once('translate', '0 1;0 2;0 1', 0.6, mood.age, 5)
+      else if (run) a = tf('translate', '0 0;0 -4;0 0', 0.4, ph + side * 0.2)
       else if (!sleep) {
         a =
           i === 0
@@ -374,6 +403,55 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const lines = run
       ? `<g>${shimmer ? `${r(-3, 2, 2, 0.5, PINK)}${r(-5, 3.5, 3, 0.5, BLUE)}${r(-4, 5, 2, 0.5, GREEN)}` : `${r(-3, 2, 2, 0.5, DIM)}${r(-5, 4, 3, 0.5, DIM)}`}<animate attributeName="opacity" values="1;0.3;1" dur="0.5s" begin="${-ph}s" repeatCount="indefinite"/></g>`
       : ''
+    // Time of day: nightcaps at night, party hats on Friday evening, coffee in the morning.
+    const outfit = fx?.outfit ?? ''
+    const CAPS = ['#818cf8', '#a78bfa', '#60a5fa', '#818cf8', '#a78bfa']
+    const PARTY = ['#f472b6', '#60a5fa', '#facc15', '#4ade80', '#a78bfa']
+    const cap =
+      i < 5 && outfit === 'night'
+        ? `<polygon points="${-3 * U},${-8 * U} ${3 * U},${-8 * U} ${5 * U},${-11 * U} ${3.5 * U},${-12 * U}" fill="${CAPS[i]}"/><rect x="${3 * U}" y="${-13 * U}" width="${2 * U}" height="${2 * U}" fill="#f4f4f5"/>`
+        : i < 5 && outfit === 'party'
+          ? `<polygon points="${-2.5 * U},${-8 * U} ${2.5 * U},${-8 * U} 0,${-11.5 * U}" fill="${PARTY[i]}"/><rect x="${-1 * U}" y="${-9.5 * U}" width="${2 * U}" height="${U / 2}" fill="#f4f4f5"/>`
+          : ''
+    const headgear = `${cap || (i === 0 ? hat : '')}${i === 2 ? shades : ''}`
+    const moon = outfit === 'night' && i === 1 ? `${r(11, -3, 2, 1, '#fde68a')}${r(11, -2, 1, 1, '#fde68a')}${r(11, -1, 2, 1, '#fde68a')}` : ''
+    const mug =
+      outfit === 'morning' && (i === 1 || i === 3)
+        ? `<g>${r(13, 2, 2, 3, '#f4f4f5')}${r(15, 3, 1, 1, '#f4f4f5')}${r(13, 2, 2, 1, '#92400e')}</g><g>${r(13, 0, 1, 1, '#d4d4d8')}<animate attributeName="opacity" values="0;0.9;0" dur="1.6s" begin="${-ph}s" repeatCount="indefinite"/>${tf('translate', '0 3;0 -4', 1.6, ph)}</g>`
+        : ''
+    // What you asked for: a magnifier (find / search) or a hammer (fix) for the length of the turn.
+    const magnifier =
+      fx?.intent === 'search' && i === 1
+        ? wrap(
+            `${r(12, 0, 3, 1, '#e4e4e7')}${r(12, 3, 3, 1, '#e4e4e7')}${r(12, 1, 1, 2, '#e4e4e7')}${r(14, 1, 1, 2, '#e4e4e7')}${r(13, 1, 1, 2, '#7dd3fc')}${r(11, 4, 1, 1, '#a16207')}`,
+            tf('translate', '0 0;3 -1;0 0;-2 1;0 0', 1.6, ph),
+          )
+        : ''
+    const hammer =
+      fx?.intent === 'fix' && i === 3
+        ? wrap(`${r(12, 1, 1, 4, '#a16207')}${r(11, 0, 4, 2, '#9ca3af')}`, tf('rotate', '0 12 -6;-38 12 -6;0 12 -6', 0.5, ph))
+        : ''
+    // a long tool call: one of them holds an umbrella
+    const umbrella =
+      fx?.umbrella && i === 4
+        ? wrap(`${r(0, -1, 13, 1, '#ef4444')}${r(2, -2, 9, 1, '#f4f4f5')}${r(4, -3, 5, 1, '#ef4444')}${r(6, 0, 1, 1, '#a16207')}`, tf('translate', '0 0;0 -1;0 0', 1.2, ph))
+        : ''
+    // an error: a tear
+    const tear =
+      mood?.kind === 'sad' && i % 2 === 0
+        ? `<g>${r(4, 3, 1, 1, '#60a5fa')}${once('translate', '0 0;0 9', 1.3, mood.age, 2, '', '0.4 0 1 1')}<animate attributeName="opacity" values="1;1;0" dur="1.3s" begin="${-mood.age}s" repeatCount="2"/></g>`
+        : ''
+    // a round sum, or passing tests: confetti
+    const confetti =
+      mood && (mood.kind === 'party' || mood.kind === 'cheer') && i % 2 === 0
+        ? [0, 1, 2]
+            .map(
+              q =>
+                `<g>${r(2 + q * 4, -2 - q, 1, 1, [PINK, GREEN, '#facc15'][(i + q) % 3])}${once('translate', '0 -8;0 12', 1.2, mood.age + q * 0.3, 4, '', LIN)}<animate attributeName="opacity" values="1;1;0" dur="1.2s" begin="${-(mood.age + q * 0.3)}s" repeatCount="4"/></g>`,
+            )
+            .join('')
+        : ''
+    const score = ball && (fx?.goals ?? 0) > 0 ? `<text x="${14}" y="${-17}" font-size="7" font-weight="700" fill="${DIM}" font-family="ui-monospace, monospace">⚽${fx!.goals}</text>` : ''
     const kit = ball ? `${r(2, 3, 9, 3, '#2563eb')}${r(6, 4, 1, 1, '#f4f4f5')}` : ''
     const ballSvg = (() => {
       if (!ball) return ''
@@ -383,12 +461,20 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
         const dribble = wrap(wrap(body, tf('translate', '0 0;0 -4;0 0', 0.4, ph)), tf('translate', '0 0;3 0;0 0', 0.8, ph))
         return dribble
       }
+      if (goalFx) {
+        // a shot into a little goal: the ball goes in, the goal and a flash show
+        const sx = once('translate', '0 0;0 0;22 0;22 0', 2.4, goalFx.age, 1, '0;0.15;0.4;1', [LIN, '0.1 0.6 0.35 1', LIN])
+        const sy = once('translate', '0 0;0 0;0 -8;0 0;0 0', 2.4, goalFx.age, 1, '0;0.15;0.27;0.4;1', [LIN, '0.1 0.6 0.35 1', '0.65 0 0.9 0.4', LIN])
+        const frame = `<g opacity="0">${r(24, 3, 1, 5, '#e4e4e7')}${r(28, 3, 1, 5, '#e4e4e7')}${r(24, 3, 5, 1, '#e4e4e7')}${r(25, 4, 3, 4, '#3f3f46')}<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.08;0.9;1" dur="3.6s" begin="${-goalFx.age}s" repeatCount="1"/></g>`
+        const flash = `<g opacity="0">${r(26, 0, 1, 3, '#fde68a')}${r(25, 1, 3, 1, '#fde68a')}<animate attributeName="opacity" values="0;0;1;0" keyTimes="0;0.38;0.45;0.75" dur="2.4s" begin="${-goalFx.age}s" repeatCount="1"/></g>`
+        return `${frame}${flash}${wrap(wrap(body, sy), sx)}`
+      }
       // kick out to a neighbour and let it roll back
       const x = tf('translate', '0 0;0 0;26 0;26 0;0 0', KICK, ph, '0;0.58;0.78;0.84;1', [LIN, '0.1 0.6 0.35 1', LIN, IO])
       const y = tf('translate', '0 0;0 0;0 -9;0 0;0 0', KICK, ph, '0;0.58;0.68;0.78;1', [LIN, '0.1 0.6 0.35 1', '0.65 0 0.9 0.4', LIN])
       return wrap(wrap(body, y), x)
     })()
-    let core = `${arm(0, 0)}${arm(11, 1)}${paint(2, 0, 9, 6)}${kit}${eyes}${i === 0 ? hat : i === 2 ? shades : ''}${leg(3, false)}${leg(7, false)}${leg(5, true)}${leg(9, true)}${ballSvg}${heart}${zz}${lines}${special}`
+    let core = `${arm(0, 0)}${arm(11, 1)}${paint(2, 0, 9, 6)}${kit}${eyes}${headgear}${leg(3, false)}${leg(7, false)}${leg(5, true)}${leg(9, true)}${ballSvg}${heart}${zz}${lines}${special}${score}${moon}${mug}${magnifier}${hammer}${umbrella}${tear}${confetti}`
 
     // layers, inside out: hop, squash, sway, turn-round
     const hop = run
@@ -399,6 +485,13 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
           ? tf('translate', '0 0;0 -5;0 0;0 -5;0 0;0 0', 3.2, ph, '0;0.14;0.28;0.42;0.56;1', [IO, IO, IO, IO, LIN]) // double jump
           : tf('translate', '0 0;0 -4;0 0;0 0', 2 + i * 0.35, ph * 2, '0;0.2;0.4;1', [IO, IO, LIN])
     core = wrap(core, hop)
+    if (mood) {
+      const delay = rankOf(i) * 0.06
+      core =
+        mood.kind === 'sad'
+          ? wrap(core, once('scale', '1 1;1 0.86;1 0.86;1 1', 3.2, mood.age - delay, 1, '0;0.2;0.8;1'))
+          : wrap(core, once('translate', '0 0;0 -7;0 0', 0.55, mood.age - delay, 5))
+    }
     if (waveOn) core = wrap(core, tf('translate', '0 0;0 -6;0 0;0 0', 4.4, -wb, '0;0.06;0.12;1', [IO, IO, LIN])) // the wave
     if (!run && (i === 3 || sleep))
       core = wrap(core, tf('scale', '1 1;1.1 0.9;1 1', sleep ? 2.8 : 2, ph)) // stretch / breathe
@@ -464,6 +557,9 @@ export const register: Register = on => {
   let runStart = 0
   let isRun = false
   let lastW = 400
+  let turnErr = false // a tool failed during this turn
+  let testsPassed = false // a test command succeeded during this turn
+  let partyPending = false // a round sum was spent during this turn
   let settle: { s: number[]; h: number[]; start: number } | null = null
   let idleSince: number | null = null // when it last went quiet (ms); null while working
   let ultraSetting = false // ultracode as the settings hold it
@@ -505,9 +601,13 @@ export const register: Register = on => {
         let usd: number | undefined
         let limitAt = 0
         let limitPct = 0
+        let ctxTokens = -1
+        let ctxWindow = 0
         try {
           const u = await $.session.usage()
           usd = u.cost?.usd
+          ctxTokens = u.context.tokens ?? 0
+          ctxWindow = u.context.window
           const w = u.rateLimits.find(r => r.kind === 'five_hour')
           if (w?.resetsAt) {
             limitAt = Math.round(Date.parse(w.resetsAt) / 1000) * 1000
@@ -521,11 +621,23 @@ export const register: Register = on => {
         const flipped = lastUltraSetting === undefined ? isUltra : isUltra !== lastUltraSetting
         lastUltraSetting = isUltra
         const changeUltra = flipped && cur.ultra !== isUltra
+        const changeCtx =
+          ctxTokens >= 0 &&
+          ctxWindow > 0 &&
+          (Math.round(ctxTokens / 1000) !== Math.round((cur.ctxTokens ?? 0) / 1000) || ctxWindow !== (cur.ctxWindow ?? 0))
+        // a round sum ($10, $20 ...) was just passed
+        const crossed = changeUsd && usd! > cur.usd && Math.floor(usd! / 10) > Math.floor(cur.usd / 10)
+        if (crossed && isRun) partyPending = true
+        const partyNow = crossed && !isRun
+        const tNow = await $.clock.now()
         const changeLimit =
           limitAt > 0 && (limitAt !== (cur.limitResetAt ?? 0) || Math.abs(limitPct - (cur.limitPct ?? 0)) >= 1)
-        if (changeLevel || changeUsd || changeUltra || changeLimit)
+        if (changeLevel || changeUsd || changeUltra || changeLimit || changeCtx)
           await update($, stats, s => ({
             ...s,
+            ctxTokens: changeCtx ? ctxTokens : s.ctxTokens,
+            ctxWindow: changeCtx ? ctxWindow : s.ctxWindow,
+            fx: partyNow ? { kind: 'party', at: tNow } : s.fx,
             limitResetAt: changeLimit ? limitAt : s.limitResetAt,
             limitPct: changeLimit ? limitPct : s.limitPct,
             effort: changeLevel ? level! : s.effort,
@@ -561,10 +673,35 @@ export const register: Register = on => {
     return next(e)
   })
 
+  // Tool calls: a failure makes them sad, passing tests make them cheer, and a call
+  // that runs long (8 s+) gets one of them an umbrella.
+  const TEST_RE = /\b(test|tests|pytest|jest|vitest|mocha|rspec|phpunit)\b|cargo test|go test|npm (run )?t\b/i
+  on('tool.call', async ($, e, next) => {
+    if ((e as { agentId?: string }).agentId) return next(e)
+    const timer = $.clock.after(8000, async () => {
+      await update($, stats, s => (s.longTool ? s : { ...s, longTool: true }))
+    })
+    const ran = (await next(e)) as { isError?: boolean; deny?: string }
+    timer.cancel()
+    if (ran?.deny !== undefined) return ran
+    if (ran?.isError === true) turnErr = true
+    else if ((e as { tool?: string }).tool === 'Bash' && TEST_RE.test(String((e as { command?: string }).command ?? ''))) testsPassed = true
+    await update($, stats, s => (s.longTool ? { ...s, longTool: false } : s))
+    return ran
+  })
+
   // "ultracode" in a prompt turns the sixth Clodie iridescent for that turn
   on('prompt.submit', async ($, e, next) => {
-    const isUltra = /ultracode/i.test(String((e as { text?: string }).text ?? ''))
-    if (isUltra) await update($, stats, s => ({ ...s, ultra: true }))
+    const text = String((e as { text?: string }).text ?? '')
+    const isUltra = /ultracode/i.test(text)
+    const intent = /найд|найти|поиск|искать|\b(find|search|grep|locate|where is)\b/i.test(text)
+      ? 'search'
+      : /почин|исправ|баг|ошибк|\b(fix|bug|repair|broken)\b/i.test(text)
+        ? 'fix'
+        : ''
+    turnErr = false
+    testsPassed = false
+    await update($, stats, s => ({ ...s, ultra: isUltra ? true : s.ultra, intent }))
     return next(e)
   })
 
@@ -593,7 +730,23 @@ export const register: Register = on => {
       settle = { s: cur, h: home, start: nowMs }
       idleSince = nowMs
       isRun = false
-      await update($, stats, s => ({ ...s, busy: false, ultra: ultraSetting }))
+      // how the turn went: an error (sad), a round sum spent (party) or passing tests (cheer);
+      // and a goal for the footballer unless a tool failed
+      const kind = turnErr ? 'sad' : partyPending ? 'party' : testsPassed ? 'cheer' : ''
+      const scored = !turnErr
+      turnErr = false
+      testsPassed = false
+      partyPending = false
+      await update($, stats, s => ({
+        ...s,
+        busy: false,
+        ultra: ultraSetting,
+        intent: '',
+        longTool: false,
+        fx: kind ? { kind, at: nowMs } : s.fx,
+        goalAt: scored ? nowMs : s.goalAt,
+        goals: (s.goals ?? 0) + (scored ? 1 : 0),
+      }))
     }
     return next(e)
   })
@@ -646,7 +799,9 @@ export const register: Register = on => {
     const R0 = remaining(s, nowMs)
     const mode: Mode = s.busy ? 'run' : R0 !== null && R0 <= 0 ? 'sleep' : 'idle'
     const cols = (e.props as { bodyColumns?: number }).bodyColumns ?? 120
-    const trackW = Math.max(120, Math.min(1200, Math.round(cols * 8.8 - pillWidth((s.limitResetAt ?? 0) > 0) - 16)))
+    const pill = pillSvg(s, nowMs)
+    const pillW = Number(pill.match(/ width="(\d+)"/)?.[1] ?? 520)
+    const trackW = Math.max(120, Math.min(1200, Math.round(cols * 8.8 - pillW - 16)))
     lastW = trackW
     const elapsed = isRun ? (nowMs - runStart) / 1000 : 0
     const age = settle ? (nowMs - settle.start) / 1000 : 0
@@ -654,6 +809,19 @@ export const register: Register = on => {
     if (!isRun && idleSince === null) idleSince = nowMs
     const bored = !isRun && idleSince !== null ? (nowMs - idleSince) / 1000 : null
     const stopping: Settle | null = settle && !isRun ? { s: settle.s, h: settle.h, age } : null
+
+    // what the Clodies are reacting to right now
+    const ago = (at: number) => (nowMs - at) / 1000
+    const hour = new Date(nowMs).getHours()
+    const weekday = new Date(nowMs).getDay()
+    const fx: Fx = {
+      mood: s.fx && ago(s.fx.at) < 6 ? { kind: s.fx.kind as 'sad' | 'cheer' | 'party', age: ago(s.fx.at) } : null,
+      goal: (s.goalAt ?? 0) > 0 && ago(s.goalAt) < 3.6 ? { age: ago(s.goalAt) } : null,
+      goals: s.goals ?? 0,
+      umbrella: !!s.longTool,
+      intent: s.intent ?? '',
+      outfit: hour >= 22 || hour < 6 ? 'night' : weekday === 5 && hour >= 18 ? 'party' : hour >= 6 && hour < 10 ? 'morning' : '',
+    }
 
     if (t.Svg) {
       const Svg = t.Svg
@@ -664,10 +832,10 @@ export const register: Register = on => {
           </Box>
           <Box justifyContent="space-between" alignItems="center" width="100%">
             <Box flexGrow={1} flexShrink={1} overflow="hidden">
-              <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored)} alt="Clodies" />
+              <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored, fx)} alt="Clodies" />
             </Box>
             <Box key="meter" hover={{ scope: 'session-meter' }}>
-              <Svg source={pillSvg(s, nowMs)} alt={`Session cost $${s.usd.toFixed(2)}`} />
+              <Svg source={pill} alt={`Session cost $${s.usd.toFixed(2)}`} />
             </Box>
           </Box>
         </Box>

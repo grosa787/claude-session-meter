@@ -26,6 +26,7 @@ A live strip above the prompt, a hover card with the details, and six little pix
 | `CACHE` | Tokens read from the prompt cache |
 | `$` | What the session has cost so far |
 | bar + clock | The prompt cache draining to zero — 1 hour by default, `/meter 5m` for the 5‑minute cache |
+| `CTX` | How full the context window is, as `used/window` in thousands of tokens, e.g. `123/1000k` (marker green → yellow → red) |
 | `5H` | Time until your 5‑hour usage limit resets (hours:minutes), with a marker that goes green → yellow → red as the limit fills. Shown only when your account reports a limit |
 
 Numbers are abbreviated as **K / M / B**. Every segment has a fixed width, so nothing jumps when the numbers change.
@@ -48,6 +49,13 @@ Seven pixel Clodies live on the left of the strip, in an evenly spaced row.
 - **Standing** – each has its own routine: a double jump, waving in turns, swaying, stretching, a turn‑around with a little heart.
 - **Cache gone cold** – they fall asleep.
 - **The footballer** – the seventh Clodie wears a blue kit. He dribbles a ball while the others run, and when standing he kicks it out to a neighbour and lets it roll back.
+- **They react to what happens:**
+  - a tool fails → they droop, a tear falls;
+  - tests pass, or a round sum ($10, $20 …) is spent → they hop, cheer and throw confetti;
+  - a tool call runs long (8 s+) → one of them opens an umbrella;
+  - your prompt says *find / search / grep* → one gets a magnifier; *fix / bug* → one gets a hammer (until the answer ends);
+  - the footballer scores a goal after every successful answer, and keeps the score.
+- **Time of day** – nightcaps (and a moon) from 22:00 to 06:00, coffee mugs in the morning, party hats on Friday evening.
 - **Five idle minutes** – they pass a wave along the row, and shimmer in turn once a minute.
 
 ### The sixth Clodie shows your reasoning level
@@ -87,6 +95,7 @@ Open sessions need a restart to pick it up.
 - The strip, the Clodies and the card are SVG, so they appear in **Claude Code Desktop**. On a terminal the mod falls back to a plain text line and hover card, without the Clodies.
 - **Reasoning level** is read from your settings and from each request. Max is not stored in settings, so it shows once `effortLevel` disappears from them or after the first request following the switch.
 - **Ultracode** is detected from the `ultracode` setting, or from the word `ultracode` in a prompt (for that turn). Claude Code does not expose the mode to mods in any other way.
+- The *find* / *fix* reactions also recognise a few Russian words (найди, поиск, почини, баг).
 - Token counters start from zero whenever the mod loads; the cost is read from the session itself.
 
 ## How it works

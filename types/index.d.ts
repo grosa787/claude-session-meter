@@ -15,6 +15,13 @@ export type Stats = {
   ultra: boolean
   limitResetAt: number
   limitPct: number
+  ctxTokens: number
+  ctxWindow: number
+  goals: number
+  goalAt: number
+  fx: { kind: string; at: number } | null
+  longTool: boolean
+  intent: string
 }
 
 declare module 'claude-code' {
