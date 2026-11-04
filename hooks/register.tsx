@@ -434,19 +434,19 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
       ? `${r(4, 2.5, 1, 0.5, DARK)}${r(8, 2.5, 1, 0.5, DARK)}`
       : `<g>${r(4, 2, 1, 1, DARK)}${r(8, 2, 1, 1, DARK)}<animate attributeName="opacity" values="1;1;0;1" keyTimes="0;0.92;0.96;1" dur="${3 + i * 0.5}s" begin="${-ph}s" repeatCount="indefinite"/></g>`
     // Everyone has a costume of their own (rows above the body are negative):
-    // a wizard with a star, a detective, a rocker, a builder, someone in a bow
+    // a wizard with a star, a detective, a punk with a mohawk, a builder, someone in a bow
     // and the footballer's socks (see leg()).
     const HATS = [
       `${r(3, -1, 7, 1, '#2563eb')}${r(4, -2, 5, 1, '#3b82f6')}${r(5, -3, 3, 1, '#3b82f6')}${r(6, -4, 1, 1, '#3b82f6')}${r(6, -2, 1, 1, '#facc15')}`, // wizard
       `${r(2, -1, 9, 1, '#78350f')}${r(4, -2, 5, 1, '#1c1917')}${r(4, -3, 5, 1, '#92400e')}${r(6, -3, 1, 1, '#78350f')}`, // fedora
-      `${r(2, 0, 9, 1, '#ef4444')}${r(5, 0, 1, 1, '#fecaca')}${r(8, 0, 1, 1, '#fecaca')}${r(11, 0, 2, 1, '#ef4444')}${r(12, 1, 1, 2, '#dc2626')}`, // bandana
+      `${r(5, -1, 1, 1, '#4ade80')}${r(6, -2, 1, 2, '#4ade80')}${r(7, -1, 1, 1, '#4ade80')}${r(6, -3, 1, 1, '#86efac')}`, // mohawk
       `${r(2, -1, 9, 1, '#facc15')}${r(3, -2, 7, 1, '#facc15')}${r(5, -3, 3, 1, '#eab308')}${r(6, -2, 1, 1, '#fff7ed')}`, // hard hat
       `${r(6, -2, 2, 2, PINK)}${r(8, -1, 1, 1, '#be185d')}${r(9, -2, 2, 2, PINK)}`, // bow
     ]
     const FACES = [
       '',
       r(5, 3, 3, 1, '#78350f'), // moustache
-      r(3, 1.5, 7, 1.5, '#0b0b0c'), // shades
+      `${r(3, 1.5, 3, 1.5, '#0b0b0c')}${r(7, 1.5, 3, 1.5, '#0b0b0c')}${r(6, 1.5, 1, 0.5, '#0b0b0c')}`, // shades
       '',
       `${r(3, 3, 1, 1, '#fda4af')}${r(9, 3, 1, 1, '#fda4af')}`, // cheeks
     ]
