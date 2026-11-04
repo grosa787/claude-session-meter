@@ -610,6 +610,35 @@ ${Array.from({ length: COUNT }, (_, i) => one(i)).join('\n')}
 </svg>`
 }
 
+// The token counters live in the session's state, which a full restart of Claude
+// loses (the cost does not: the engine totals it). So they are also kept in the
+// plugin's store under the session's id, and read back when the same session is
+// resumed. Only the newest sessions are kept.
+type Saved = Pick<Stats, 'steps' | 'input' | 'output' | 'cacheRead' | 'cacheWrite' | 'hist' | 'lastAt' | 'goals' | 'ttl'> & { at: number }
+const TOTALS = 'totals'
+const KEEP = 40
+const saveTotals = async ($: any, s: Stats) => {
+  try {
+    const id = await $.session.id()
+    const all = (((await $.store.get(TOTALS)) ?? {}) as Record<string, Saved>)
+    all[id] = {
+      steps: s.steps, input: s.input, output: s.output, cacheRead: s.cacheRead, cacheWrite: s.cacheWrite,
+      hist: s.hist, lastAt: s.lastAt, goals: s.goals ?? 0, ttl: s.ttl, at: await $.clock.now(),
+    }
+    const ids = Object.keys(all)
+    if (ids.length > KEEP) for (const k of ids.sort((a, b) => all[b].at - all[a].at).slice(KEEP)) delete all[k]
+    await $.store.set(TOTALS, all)
+  } catch {}
+}
+const loadTotals = async ($: any): Promise<Saved | null> => {
+  try {
+    const id = await $.session.id()
+    return ((((await $.store.get(TOTALS)) ?? {}) as Record<string, Saved>)[id]) ?? null
+  } catch {
+    return null
+  }
+}
+
 export const register: Register = on => {
   // Each Clodie's phase on the loop, in seconds (null: evenly spaced round it).
   // A run advances every phase by the same time, so the spacing is kept.
@@ -629,6 +658,15 @@ export const register: Register = on => {
       name: 'meter',
       description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset',
     })
+    // A resumed session starts with empty counters: read them back from the store.
+    const saved = await loadTotals($)
+    if (saved) {
+      await update($, stats, s =>
+        s.steps > 0 ? s : {
+          ...s, steps: saved.steps, input: saved.input, output: saved.output, cacheRead: saved.cacheRead,
+          cacheWrite: saved.cacheWrite, hist: saved.hist, lastAt: saved.lastAt, goals: saved.goals, ttl: saved.ttl,
+        })
+    }
     // Keep the reasoning level, ultracode and the cost current while idle too.
     let lastPolled: string | undefined
     let seenSettingLevel = false
@@ -742,6 +780,7 @@ export const register: Register = on => {
       await update($, stats, s => ({ ...s, ttl: arg }))
     } else if (arg === 'reset') {
       await update($, stats, s => ({ ...empty, ttl: s.ttl, usd: s.usd, lastAt: s.lastAt }))
+      await saveTotals($, await read($, stats))
     }
     await $.ui.open({ id: PANE })
     return { text: 'Session meter opened.' }
@@ -871,6 +910,7 @@ export const register: Register = on => {
         // the cache countdown follows the main thread only
         lastAt: e.agentId ? s.lastAt : now,
       }))
+      await saveTotals($, await read($, stats))
     }
     return r
   })
