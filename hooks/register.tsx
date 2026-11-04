@@ -6,7 +6,7 @@ import type { Stats } from '../types'
 const PANE = 'session-meter'
 const empty: Stats = {
   steps: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
-  lastAt: 0, ttl: '1h', usd: 0, now: 0, frame: 0, busy: false, hist: [], effort: 'medium', ultra: false, limitResetAt: 0, limitPct: 0,
+  lastAt: 0, ttl: '1h', usd: 0, now: 0, frame: 0, busy: false, hist: [], effort: 'medium', ultra: false, limitResetAt: 0, limitPct: 0, limit7ResetAt: 0, limit7Pct: 0,
   ctxTokens: 0, ctxWindow: 0, ctxLimit: 0, goals: 0, goalAt: 0, fx: null, longTool: false, intent: '',
 }
 const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
@@ -49,24 +49,29 @@ const short = (v: number) => {
 // has to redraw it every second: each digit is a stack of numerals shown one at
 // a time on a loop, set to the right place when the picture is drawn.
 // ---------------------------------------------------------------------------
-const digitsSvg = (R0: number, xEnd: number, y: number, size: number, hm = false) => {
+const digitsSvg = (R0: number, xEnd: number, y: number, size: number, fmt: 'ms' | 'hm' | 'dh' = 'ms') => {
   const cw = size * 0.6
-  const chars = hm ? 4 : 5
+  const chars = fmt === 'hm' ? 4 : 5
   const x0 = xEnd - chars * cw
-  const cols = hm
+  const cols = fmt === 'hm'
     ? [
         { N: 6, unit: 3600, pos: 0 }, // hours
         { N: 6, unit: 600, pos: 2 }, // tens of minutes
         { N: 10, unit: 60, pos: 3 }, // minutes
       ]
-    : [
+    : fmt === 'dh'
+      ? [
+          { N: 8, unit: 86400, pos: 0 }, // days
+          { N: 24, unit: 3600, pos: 2, label: (v: number) => String(v).padStart(2, '0') }, // hours of the day
+        ]
+      : [
         { N: 7, unit: 600, pos: 0 }, // tens of minutes
         { N: 10, unit: 60, pos: 1 }, // minutes
         { N: 6, unit: 10, pos: 3 }, // tens of seconds
         { N: 10, unit: 1, pos: 4 }, // seconds
       ]
   let out = ''
-  for (const { N, unit, pos } of cols) {
+  for (const { N, unit, pos, label } of cols as { N: number; unit: number; pos: number; label?: (v: number) => string }[]) {
     const P = N * unit
     const a = R0 % P
     const begin = -(P - a)
@@ -77,22 +82,32 @@ const digitsSvg = (R0: number, xEnd: number, y: number, size: number, hm = false
       if (k1 > 0) pts.push([k1, 1])
       else pts[0] = [0, 1]
       if (k2 < 1) pts.push([k2, 0])
-      out += `<text x="${(x0 + pos * cw).toFixed(1)}" y="${y}" opacity="${pts[0][1]}" font-size="${size}">${v}<animate attributeName="opacity" calcMode="discrete" values="${pts.map(p => p[1]).join(';')}" keyTimes="${pts.map(p => p[0].toFixed(5)).join(';')}" dur="${P}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite"/></text>`
+      out += `<text x="${(x0 + pos * cw).toFixed(1)}" y="${y}" opacity="${pts[0][1]}" font-size="${size}">${label ? label(v) : v}<animate attributeName="opacity" calcMode="discrete" values="${pts.map(p => p[1]).join(';')}" keyTimes="${pts.map(p => p[0].toFixed(5)).join(';')}" dur="${P}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite"/></text>`
     }
   }
-  out += `<text x="${(x0 + (hm ? 1 : 2) * cw).toFixed(1)}" y="${y}" font-size="${size}">:</text>`
+  const lit = (ch: string, pos: number) => `<text x="${(x0 + pos * cw).toFixed(1)}" y="${y}" font-size="${size}">${ch}</text>`
+  out += fmt === 'dh' ? lit('d', 1) + lit('h', 4) : lit(':', fmt === 'hm' ? 1 : 2)
   return out
 }
 
 // The time left, drawn in `fill`, or "cold" once it has run out.
-const timeSvg = (R0: number | null, xEnd: number, y: number, size: number, fill: string, weight: number, hm = false, cold = 'cold') => {
+const timeSvg = (R0: number | null, xEnd: number, y: number, size: number, fill: string, weight: number, fmt: 'ms' | 'hm' | 'dh' = 'ms', cold = 'cold') => {
   const head = `<g fill="${fill}" font-weight="${weight}" text-anchor="start" ${NUM}>`
-  if (R0 === null) return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">${hm ? '—:——' : '—:——'}</text>`
+  if (R0 === null) return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">—:——</text>`
   if (R0 <= 0)
     return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">${cold}</text>`
-  return `${head}${digitsSvg(R0, xEnd, y, size, hm)}<set attributeName="opacity" to="0" begin="${R0.toFixed(2)}s" fill="freeze"/></g>
+  return `${head}${digitsSvg(R0, xEnd, y, size, fmt)}<set attributeName="opacity" to="0" begin="${R0.toFixed(2)}s" fill="freeze"/></g>
 <text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end" opacity="0">${cold}<set attributeName="opacity" to="1" begin="${R0.toFixed(2)}s" fill="freeze"/></text>`
 }
+
+const hexRgb = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16))
+const mix = (a: string, b: string, t: number) => {
+  const x = hexRgb(a)
+  const y = hexRgb(b)
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')
+}
+const pctColor = (p: number) =>
+  p < 50 ? mix('#4ade80', '#facc15', Math.max(0, p) / 50) : mix('#facc15', '#f87171', Math.min(1, (p - 50) / 50))
 
 // Colour of the bar and marker: accent, red for the last fifth, grey when cold.
 const stateColor = (R0: number | null, ttl: number) =>
@@ -163,19 +178,40 @@ const pillSvg = (s: Stats, nowMs: number) => {
 <text x="${x + 19}" y="19.5" font-size="12" font-weight="600" fill="${TEXT}">$${s.usd.toFixed(2)}</text>
 ${drainBar(Math.round(bx), 12, 48, 6, 1.5, R0, ttl)}
 ${timeSvg(R0, Math.round(tEnd), 19.5, 12, TEXT, 400)}`
-  // the 5-hour limit: time until the window resets, and how much of it is used
-  const hasLimit = (s.limitResetAt ?? 0) > 0
+  // The usage limits: time until the window resets, and how much of it is used.
+  // With both the 5-hour and the 7-day window the readout is a wheel: every two
+  // minutes it turns upwards, 5H -> 7D -> 5H ..., the next face rising from below.
+  // The marker's colour runs green -> yellow -> red with how much is used.
+  const wins: { label: string; R: number; pct: number; fmt: 'hm' | 'dh'; cold: string }[] = []
+  if ((s.limitResetAt ?? 0) > 0)
+    wins.push({ label: '5H', R: (s.limitResetAt - nowMs) / 1000, pct: s.limitPct ?? 0, fmt: 'hm', cold: '0:00' })
+  if ((s.limit7ResetAt ?? 0) > 0)
+    wins.push({ label: '7D', R: (s.limit7ResetAt - nowMs) / 1000, pct: s.limit7Pct ?? 0, fmt: 'dh', cold: '0d00h' })
   let W = Math.round(tEnd + 10)
-  if (hasLimit) {
-    const R1 = (s.limitResetAt - nowMs) / 1000
-    const pct = s.limitPct ?? 0
-    const lc = pct < 60 ? GREEN : pct < 85 ? '#facc15' : WARN
+  if (wins.length > 0) {
     const xd = Math.round(tEnd + 10)
-    const lEnd = xd + 19 + 2 * CW + 8 + 4 * CW
+    const lEnd = Math.round(xd + 19 + 2 * CW + 8 + 5 * CW)
+    const face = (w: (typeof wins)[number], oy: number) =>
+      `<g transform="translate(0,${oy})"><rect x="${xd + 8}" y="12" width="6" height="6" rx="1.5" fill="${pctColor(w.pct)}"/>
+<text x="${xd + 19}" y="19.5" font-size="12" fill="${DIM}">${w.label}</text>
+${timeSvg(w.R, lEnd, 19.5, 12, TEXT, 400, w.fmt, w.cold)}</g>`
+    let readout: string
+    if (wins.length === 1) {
+      readout = face(wins[0], 0)
+    } else {
+      // faces: 5H, 7D, 5H again (so the last turn lands on an identical face and the loop is seamless)
+      const PERIOD = 240
+      const TURN_S = 0.7
+      const t1 = (PERIOD / 2 - TURN_S) / PERIOD
+      const t2 = 0.5
+      const t3 = (PERIOD - TURN_S) / PERIOD
+      const phase = (nowMs / 1000) % PERIOD // wall-clock phase: redraws never restart the wheel
+      const spin = `<animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 -${H};0 -${H};0 -${2 * H}" keyTimes="0;${t1.toFixed(5)};${t2};${t3.toFixed(5)};1" calcMode="spline" keySplines="0 0 1 1;0.45 0 0.55 1;0 0 1 1;0.45 0 0.55 1" dur="${PERIOD}s" begin="${(-phase).toFixed(2)}s" repeatCount="indefinite"/>`
+      readout = `<clipPath id="wheel"><rect x="${xd + 1}" y="0" width="${lEnd - xd + 8}" height="${H}"/></clipPath>
+<g clip-path="url(#wheel)"><g>${spin}${face(wins[0], 0)}${face(wins[1], H)}${face(wins[0], 2 * H)}</g></g>`
+    }
     body += `<line x1="${xd}" y1="6" x2="${xd}" y2="${H - 6}" stroke="${LINE}"/>
-<rect x="${xd + 8}" y="12" width="6" height="6" rx="1.5" fill="${lc}"/>
-<text x="${xd + 19}" y="19.5" font-size="12" fill="${DIM}">5H</text>
-${timeSvg(R1, Math.round(lEnd), 19.5, 12, TEXT, 400, true, '0:00')}`
+${readout}`
     W = Math.round(lEnd + 10)
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ${MONO}>
@@ -197,11 +233,13 @@ const cardSvg = (s: Stats, nowMs: number) => {
   ]
   const sum = Math.max(1, parts.reduce((a, p) => a + p[1], 0))
   const BAR = 228
-  const hasLimit = (s.limitResetAt ?? 0) > 0
-  const CH = hasLimit ? 310 : 292
-  const limitLine = hasLimit
-    ? `<text x="18" y="299" font-size="11" fill="${DIM}">5-hour limit: ${Math.round(s.limitPct ?? 0)}% used</text>`
-    : ''
+  const limitRows: string[] = []
+  if ((s.limitResetAt ?? 0) > 0) limitRows.push(`5-hour limit: ${Math.round(s.limitPct ?? 0)}% used`)
+  if ((s.limit7ResetAt ?? 0) > 0) limitRows.push(`7-day limit: ${Math.round(s.limit7Pct ?? 0)}% used`)
+  const CH = 292 + 18 * limitRows.length
+  const limitLine = limitRows
+    .map((t, k) => `<text x="18" y="${299 + 18 * k}" font-size="11" fill="${DIM}">${t}</text>`)
+    .join('')
   const rows = parts
     .map(([label, v, c], i) => {
       const y = 112 + i * 38
@@ -454,7 +492,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
             )
             .join('')
         : ''
-    const score = ball && (fx?.goals ?? 0) > 0 ? `<text x="${14}" y="${-17}" font-size="7" font-weight="700" fill="${DIM}" font-family="ui-monospace, monospace">⚽${fx!.goals}</text>` : ''
+    const score = ball && (fx?.goals ?? 0) > 0 ? `<text x="${14}" y="${-17}" font-size="7" font-weight="700" fill="${DIM}" font-family="ui-monospace, monospace">×${fx!.goals}</text>` : ''
     const kit = ball ? `${r(2, 3, 9, 3, '#2563eb')}${r(6, 4, 1, 1, '#f4f4f5')}` : ''
     const ballSvg = (() => {
       if (!ball) return ''
@@ -607,6 +645,8 @@ export const register: Register = on => {
         let usd: number | undefined
         let limitAt = 0
         let limitPct = 0
+        let limit7At = 0
+        let limit7Pct = 0
         let ctxTokens = -1
         let ctxWindow = 0
         let ctxLimit = 0
@@ -627,6 +667,11 @@ export const register: Register = on => {
           if (w?.resetsAt) {
             limitAt = Math.round(Date.parse(w.resetsAt) / 1000) * 1000
             limitPct = w.percentUsed
+          }
+          const w7 = u.rateLimits.find(r => r.kind === 'seven_day')
+          if (w7?.resetsAt) {
+            limit7At = Math.round(Date.parse(w7.resetsAt) / 1000) * 1000
+            limit7Pct = w7.percentUsed
           }
         } catch {}
         const cur = await read($, stats)
@@ -649,7 +694,9 @@ export const register: Register = on => {
         const tNow = await $.clock.now()
         const changeLimit =
           limitAt > 0 && (limitAt !== (cur.limitResetAt ?? 0) || Math.abs(limitPct - (cur.limitPct ?? 0)) >= 1)
-        if (changeLevel || changeUsd || changeUltra || changeLimit || changeCtx)
+        const changeLimit7 =
+          limit7At > 0 && (limit7At !== (cur.limit7ResetAt ?? 0) || Math.abs(limit7Pct - (cur.limit7Pct ?? 0)) >= 1)
+        if (changeLevel || changeUsd || changeUltra || changeLimit || changeLimit7 || changeCtx)
           await update($, stats, s => ({
             ...s,
             ctxTokens: changeCtx ? ctxTokens : s.ctxTokens,
@@ -658,6 +705,8 @@ export const register: Register = on => {
             fx: partyNow ? { kind: 'party', at: tNow } : s.fx,
             limitResetAt: changeLimit ? limitAt : s.limitResetAt,
             limitPct: changeLimit ? limitPct : s.limitPct,
+            limit7ResetAt: changeLimit7 ? limit7At : s.limit7ResetAt,
+            limit7Pct: changeLimit7 ? limit7Pct : s.limit7Pct,
             effort: changeLevel ? level! : s.effort,
             usd: changeUsd ? usd! : s.usd,
             ultra: changeUltra ? isUltra : s.ultra,

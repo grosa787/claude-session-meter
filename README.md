@@ -27,14 +27,14 @@ A live strip above the prompt, a hover card with the details, and six little pix
 | `$` | What the session has cost so far |
 | bar + clock | The prompt cache draining to zero — 1 hour by default, `/meter 5m` for the 5‑minute cache |
 | `CTX` | Context used, as `used/limit` in thousands of tokens, e.g. `123/600k`. The limit follows your `/autocompact` setting for the current model and falls back to the model's whole window (e.g. `1000k`) when none is set; it updates as soon as you change it. Marker green → yellow → red |
-| `5H` | Time until your 5‑hour usage limit resets (hours:minutes), with a marker that goes green → yellow → red as the limit fills. Shown only when your account reports a limit |
+| `5H` / `7D` | Time until your 5‑hour and 7‑day usage limits reset (`3:26` / `3d03h`). When both are known, one readout turns like a wheel every two minutes, 5H → 7D → 5H, each face rising from below. The marker beside it runs smoothly from green through yellow to red as that limit fills. Shown only when your account reports the limit |
 
 Numbers are abbreviated as **K / M / B**. Every segment has a fixed width, so nothing jumps when the numbers change.
 The countdown runs *inside* the picture, so the strip is never redrawn on a timer.
 
 ### Hover for the full picture
 
-Hover the strip and a card opens above it with exact counts, cache‑write tokens, cache hit rate, the number of requests and how much of the 5‑hour limit is used. `/meter` shows the same card in a pane.
+Hover the strip and a card opens above it with exact counts, cache‑write tokens, cache hit rate, the number of requests and how much of the 5‑hour and 7‑day limits is used. `/meter` shows the same card in a pane.
 
 <div align="center">
 <img src="docs/card.png" alt="The hover card" width="320">
@@ -54,7 +54,7 @@ Seven pixel Clodies live on the left of the strip, in an evenly spaced row.
   - tests pass, or a round sum ($10, $20 …) is spent → they hop, cheer and throw confetti;
   - a tool call runs long (8 s+) → one of them opens an umbrella;
   - your prompt says *find / search / grep* → one gets a magnifier; *fix / bug* → one gets a hammer (until the answer ends);
-  - the footballer scores a goal after every successful answer, and keeps the score.
+  - the footballer scores a goal after every successful answer, and keeps the score (`×N` above him).
 - **Time of day** – nightcaps (and a moon) from 22:00 to 06:00, coffee mugs in the morning, party hats on Friday evening.
 - **Five idle minutes** – they pass a wave along the row, and shimmer in turn once a minute.
 

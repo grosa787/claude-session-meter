@@ -15,6 +15,8 @@ export type Stats = {
   ultra: boolean
   limitResetAt: number
   limitPct: number
+  limit7ResetAt: number
+  limit7Pct: number
   ctxTokens: number
   ctxWindow: number
   ctxLimit: number
