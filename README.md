@@ -3,7 +3,7 @@
 # session-meter
 
 **See what your Claude Code session costs, when the prompt cache dies, and where your tokens go.**
-A live strip above the prompt, a hover card with the details, and six little pixel Clodies that run while Claude works.
+A live strip above the prompt, a hover card with the details, and seven little pixel Clodies in different costumes that run while Claude works.
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-d97757)
 ![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757)
