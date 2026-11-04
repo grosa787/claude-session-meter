@@ -466,7 +466,9 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const PARTY = ['#f472b6', '#60a5fa', '#facc15', '#4ade80', '#a78bfa']
     const cap =
       i < 5 && outfit === 'night'
-        ? `<polygon points="${3 * U},${-8 * U} ${-3 * U},${-8 * U} ${-5 * U},${-10 * U} ${-3.5 * U},${-11 * U}" fill="${CAPS[i]}"/><rect x="${-6.5 * U}" y="${-11.5 * U}" width="${2 * U}" height="${2 * U}" fill="#f4f4f5"/>` // the tail trails behind (left), they run right
+        ? run
+          ? `<polygon points="${3 * U},${-8 * U} ${-3 * U},${-8 * U} ${-5 * U},${-10 * U} ${-3.5 * U},${-11 * U}" fill="${CAPS[i]}"/><rect x="${-6.5 * U}" y="${-11.5 * U}" width="${2 * U}" height="${2 * U}" fill="#f4f4f5"/>` // running: the tail trails behind (left)
+          : `<polygon points="${3 * U},${-8 * U} ${-3 * U},${-8 * U} 0,${-10.5 * U}" fill="${CAPS[i]}"/><rect x="${-U}" y="${-12 * U}" width="${2 * U}" height="${2 * U}" fill="#f4f4f5"/>` // standing: upright
         : i < 5 && outfit === 'party'
           ? `<polygon points="${-2.5 * U},${-8 * U} ${2.5 * U},${-8 * U} 0,${-11.5 * U}" fill="${PARTY[i]}"/><rect x="${-1 * U}" y="${-9.5 * U}" width="${2 * U}" height="${U / 2}" fill="#f4f4f5"/>`
           : ''
