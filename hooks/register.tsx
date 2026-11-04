@@ -437,7 +437,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     // a wizard with a star, a detective, a punk with a mohawk, a builder, someone in a bow
     // and the footballer's socks (see leg()).
     const HATS = [
-      `${r(3, -1, 7, 1, '#2563eb')}${r(4, -2, 5, 1, '#3b82f6')}${r(5, -3, 3, 1, '#3b82f6')}${r(6, -4, 1, 1, '#3b82f6')}${r(6, -2, 1, 1, '#facc15')}`, // wizard
+      `${r(3, -1, 7, 1, '#2563eb')}${r(4, -2, 5, 1, '#3b82f6')}${r(5, -3, 3, 1, '#3b82f6')}${r(6, -2, 1, 1, '#facc15')}`, // wizard
       `${r(2, -1, 9, 1, '#78350f')}${r(4, -2, 5, 1, '#1c1917')}${r(4, -3, 5, 1, '#92400e')}${r(6, -3, 1, 1, '#78350f')}`, // fedora
       `${r(5, -1, 1, 1, '#4ade80')}${r(6, -2, 1, 2, '#4ade80')}${r(7, -1, 1, 1, '#4ade80')}${r(6, -3, 1, 1, '#86efac')}`, // mohawk
       `${r(2, -1, 9, 1, '#facc15')}${r(3, -2, 7, 1, '#facc15')}${r(5, -3, 3, 1, '#eab308')}${r(6, -2, 1, 1, '#fff7ed')}`, // hard hat
@@ -452,7 +452,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     ]
     const heart =
       i === 4 && mode === 'idle'
-        ? `<g>${r(5, -3, 1, 1, PINK)}${r(7, -3, 1, 1, PINK)}${r(5, -2, 3, 1, PINK)}${r(6, -1, 1, 1, PINK)}${tf('translate', '0 4;0 -7', 3.2, ph)}<animate attributeName="opacity" values="0;1;0" keyTimes="0;0.25;1" dur="3.2s" begin="${-ph}s" repeatCount="indefinite"/></g>`
+        ? `<g>${r(5, -3, 1, 1, PINK)}${r(7, -3, 1, 1, PINK)}${r(5, -2, 3, 1, PINK)}${r(6, -1, 1, 1, PINK)}${tf('translate', '0 3;0 -5', 3.2, ph)}<animate attributeName="opacity" values="0;1;0" keyTimes="0;0.25;1" dur="3.2s" begin="${-ph}s" repeatCount="indefinite"/></g>`
         : ''
     const zz = sleep
       ? `<text x="${4 * U}" y="${-9 * U}" font-size="8" font-weight="700" fill="${DIM}" font-family="ui-monospace, monospace">z<animate attributeName="opacity" values="0;1;0" dur="2.4s" begin="${-ph * 3}s" repeatCount="indefinite"/>${tf('translate', '0 3;0 -3;0 3', 2.4, ph * 3)}</text>`
@@ -466,7 +466,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const PARTY = ['#f472b6', '#60a5fa', '#facc15', '#4ade80', '#a78bfa']
     const cap =
       i < 5 && outfit === 'night'
-        ? `<polygon points="${3 * U},${-8 * U} ${-3 * U},${-8 * U} ${-5 * U},${-11 * U} ${-3.5 * U},${-12 * U}" fill="${CAPS[i]}"/><rect x="${-5 * U}" y="${-13 * U}" width="${2 * U}" height="${2 * U}" fill="#f4f4f5"/>` // the tail trails behind (left), they run right
+        ? `<polygon points="${3 * U},${-8 * U} ${-3 * U},${-8 * U} ${-5 * U},${-10 * U} ${-3.5 * U},${-11 * U}" fill="${CAPS[i]}"/><rect x="${-6.5 * U}" y="${-11.5 * U}" width="${2 * U}" height="${2 * U}" fill="#f4f4f5"/>` // the tail trails behind (left), they run right
         : i < 5 && outfit === 'party'
           ? `<polygon points="${-2.5 * U},${-8 * U} ${2.5 * U},${-8 * U} 0,${-11.5 * U}" fill="${PARTY[i]}"/><rect x="${-1 * U}" y="${-9.5 * U}" width="${2 * U}" height="${U / 2}" fill="#f4f4f5"/>`
           : ''
