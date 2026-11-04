@@ -13,6 +13,8 @@ export type Stats = {
   hist: number[]
   effort: string
   ultra: boolean
+  limitResetAt: number
+  limitPct: number
 }
 
 declare module 'claude-code' {

@@ -6,7 +6,7 @@ import type { Stats } from '../types'
 const PANE = 'session-meter'
 const empty: Stats = {
   steps: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
-  lastAt: 0, ttl: '1h', usd: 0, now: 0, frame: 0, busy: false, hist: [], effort: 'medium', ultra: false,
+  lastAt: 0, ttl: '1h', usd: 0, now: 0, frame: 0, busy: false, hist: [], effort: 'medium', ultra: false, limitResetAt: 0, limitPct: 0,
 }
 const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
   shape: 'stats-4',
@@ -48,15 +48,22 @@ const short = (v: number) => {
 // has to redraw it every second: each digit is a stack of numerals shown one at
 // a time on a loop, set to the right place when the picture is drawn.
 // ---------------------------------------------------------------------------
-const digitsSvg = (R0: number, xEnd: number, y: number, size: number, anchorEnd = true) => {
+const digitsSvg = (R0: number, xEnd: number, y: number, size: number, hm = false) => {
   const cw = size * 0.6
-  const x0 = anchorEnd ? xEnd - 5 * cw : xEnd
-  const cols = [
-    { N: 7, unit: 600, pos: 0 }, // tens of minutes
-    { N: 10, unit: 60, pos: 1 }, // minutes
-    { N: 6, unit: 10, pos: 3 }, // tens of seconds
-    { N: 10, unit: 1, pos: 4 }, // seconds
-  ]
+  const chars = hm ? 4 : 5
+  const x0 = xEnd - chars * cw
+  const cols = hm
+    ? [
+        { N: 6, unit: 3600, pos: 0 }, // hours
+        { N: 6, unit: 600, pos: 2 }, // tens of minutes
+        { N: 10, unit: 60, pos: 3 }, // minutes
+      ]
+    : [
+        { N: 7, unit: 600, pos: 0 }, // tens of minutes
+        { N: 10, unit: 60, pos: 1 }, // minutes
+        { N: 6, unit: 10, pos: 3 }, // tens of seconds
+        { N: 10, unit: 1, pos: 4 }, // seconds
+      ]
   let out = ''
   for (const { N, unit, pos } of cols) {
     const P = N * unit
@@ -72,18 +79,18 @@ const digitsSvg = (R0: number, xEnd: number, y: number, size: number, anchorEnd 
       out += `<text x="${(x0 + pos * cw).toFixed(1)}" y="${y}" opacity="${pts[0][1]}" font-size="${size}">${v}<animate attributeName="opacity" calcMode="discrete" values="${pts.map(p => p[1]).join(';')}" keyTimes="${pts.map(p => p[0].toFixed(5)).join(';')}" dur="${P}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite"/></text>`
     }
   }
-  out += `<text x="${(x0 + 2 * cw).toFixed(1)}" y="${y}" font-size="${size}">:</text>`
+  out += `<text x="${(x0 + (hm ? 1 : 2) * cw).toFixed(1)}" y="${y}" font-size="${size}">:</text>`
   return out
 }
 
 // The time left, drawn in `fill`, or "cold" once it has run out.
-const timeSvg = (R0: number | null, xEnd: number, y: number, size: number, fill: string, weight: number) => {
+const timeSvg = (R0: number | null, xEnd: number, y: number, size: number, fill: string, weight: number, hm = false, cold = 'cold') => {
   const head = `<g fill="${fill}" font-weight="${weight}" text-anchor="start" ${NUM}>`
-  if (R0 === null) return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">—:——</text>`
+  if (R0 === null) return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">${hm ? '—:——' : '—:——'}</text>`
   if (R0 <= 0)
-    return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">cold</text>`
-  return `${head}${digitsSvg(R0, xEnd, y, size)}<set attributeName="opacity" to="0" begin="${R0.toFixed(2)}s" fill="freeze"/></g>
-<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end" opacity="0">cold<set attributeName="opacity" to="1" begin="${R0.toFixed(2)}s" fill="freeze"/></text>`
+    return `<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end">${cold}</text>`
+  return `${head}${digitsSvg(R0, xEnd, y, size, hm)}<set attributeName="opacity" to="0" begin="${R0.toFixed(2)}s" fill="freeze"/></g>
+<text x="${xEnd}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${DIM}" text-anchor="end" opacity="0">${cold}<set attributeName="opacity" to="1" begin="${R0.toFixed(2)}s" fill="freeze"/></text>`
 }
 
 // Colour of the bar and marker: accent, red for the last fifth, grey when cold.
@@ -104,7 +111,8 @@ const drainBar = (x: number, y: number, w: number, h: number, rx: number, R0: nu
 
 // The strip in the band: IN, OUT and CACHE-read counts, then cost, cache bar
 // and time left. Flat rectangles in one row of fixed widths.
-const PILL_W = 532
+// width of the strip: without / with the 5-hour limit segment (see pillSvg)
+const pillWidth = (hasLimit: boolean) => (hasLimit ? 602 : 515)
 const LEVEL_LABEL: Record<string, string> = { low: 'LOW', medium: 'MED', high: 'HIGH', xhigh: 'XHIGH', max: 'MAX' }
 const LEVEL_COLOR: Record<string, string> = {
   low: '#a1a1aa', medium: BLUE, high: GREEN, xhigh: '#facc15', max: PINK,
@@ -143,12 +151,26 @@ const pillSvg = (s: Stats, nowMs: number) => {
     ? `<rect x="${x + 10}" y="12" width="6" height="6" rx="1.5" fill="${ACCENT}"><animate attributeName="opacity" values="1;0.3;1" dur="1.4s" calcMode="spline" keySplines="0.45 0 0.55 1;0.45 0 0.55 1" repeatCount="indefinite"/></rect>`
     : `<rect x="${x + 10}" y="12" width="6" height="6" rx="1.5" fill="${stateColor(R0, ttl)}">${stateSets(R0, ttl)}</rect>`
   const bx = x + 22 + 7 * CW + 8
-  const tEnd = bx + 56 + 8 + 7 * CW
+  const tEnd = bx + 56 + 12 + 5 * CW
   body += `${dot}
 <text x="${x + 22}" y="19.5" font-size="12" font-weight="600" fill="${TEXT}">$${s.usd.toFixed(2)}</text>
 ${drainBar(Math.round(bx), 12, 56, 6, 1.5, R0, ttl)}
 ${timeSvg(R0, Math.round(tEnd), 19.5, 12, TEXT, 400)}`
-  const W = Math.round(tEnd + 10)
+  // the 5-hour limit: time until the window resets, and how much of it is used
+  const hasLimit = (s.limitResetAt ?? 0) > 0
+  let W = Math.round(tEnd + 12)
+  if (hasLimit) {
+    const R1 = (s.limitResetAt - nowMs) / 1000
+    const pct = s.limitPct ?? 0
+    const lc = pct < 60 ? GREEN : pct < 85 ? '#facc15' : WARN
+    const xd = Math.round(tEnd + 12)
+    const lEnd = xd + 22 + 2 * CW + 10 + 4 * CW
+    body += `<line x1="${xd}" y1="6" x2="${xd}" y2="${H - 6}" stroke="${LINE}"/>
+<rect x="${xd + 10}" y="12" width="6" height="6" rx="1.5" fill="${lc}"/>
+<text x="${xd + 22}" y="19.5" font-size="12" fill="${DIM}">5H</text>
+${timeSvg(R1, Math.round(lEnd), 19.5, 12, TEXT, 400, true, '0:00')}`
+    W = Math.round(lEnd + 12)
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" ${MONO}>
 ${body}
 </svg>`
@@ -168,6 +190,11 @@ const cardSvg = (s: Stats, nowMs: number) => {
   ]
   const sum = Math.max(1, parts.reduce((a, p) => a + p[1], 0))
   const BAR = 228
+  const hasLimit = (s.limitResetAt ?? 0) > 0
+  const CH = hasLimit ? 310 : 292
+  const limitLine = hasLimit
+    ? `<text x="18" y="299" font-size="11" fill="${DIM}">5-hour limit: ${Math.round(s.limitPct ?? 0)}% used</text>`
+    : ''
   const rows = parts
     .map(([label, v, c], i) => {
       const y = 112 + i * 38
@@ -177,8 +204,8 @@ const cardSvg = (s: Stats, nowMs: number) => {
 <rect x="18" y="${y + 8}" width="${Math.max(v > 0 ? 4 : 0, (BAR * v) / sum).toFixed(1)}" height="4" rx="1.5" fill="${c}"/>`
     })
     .join('\n')
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="292" viewBox="0 0 264 292" ${FONT}>
-<rect x="0.5" y="0.5" width="263" height="291" rx="6" fill="#262624" stroke="${LINE}"/>
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="264" height="${CH}" viewBox="0 0 264 ${CH}" ${FONT}>
+<rect x="0.5" y="0.5" width="263" height="${CH - 1}" rx="6" fill="#262624" stroke="${LINE}"/>
 <text x="18" y="30" font-size="12" fill="${DIM}">This session</text>
 <text x="246" y="32" font-size="18" font-weight="700" fill="${TEXT}" text-anchor="end" ${NUM}>$${s.usd.toFixed(4)}</text>
 <line x1="18" y1="46" x2="246" y2="46" stroke="${LINE}"/>
@@ -189,6 +216,7 @@ ${drainBar(18, 80, BAR, 8, 2, R0, ttl)}
 ${rows}
 <line x1="18" y1="262" x2="246" y2="262" stroke="${LINE}"/>
 <text x="18" y="281" font-size="11" fill="${DIM}">Cache hit ${hit}% · ${n(s.steps)} requests</text>
+${limitLine}
 </svg>`
 }
 
@@ -207,8 +235,8 @@ ${rows}
 type Mode = 'run' | 'idle' | 'sleep'
 const LANE_H = 30
 const SPEED = 110 // px per second
-const COUNT = 6
-const COLORS = ['#d97757', '#e08a6a', '#c9684a', '#d97757', '#e59a7a', '#d97757']
+const COUNT = 7
+const COLORS = ['#d97757', '#e08a6a', '#c9684a', '#d97757', '#e59a7a', '#d97757', '#d97757']
 // the sixth Clodie's body tint by reasoning level
 const LEVEL_BODY: Record<string, string> = { low: '#b88f7e', medium: '#d97757', high: '#d97757', xhigh: '#ea6a45', max: '#f0b35a' }
 
@@ -225,10 +253,12 @@ const laneGeometry = (width: number) => {
 // Where each Clodie stands before the first run: in an even row, centred.
 // The row keeps a margin from the posts at both ends so nobody touches an edge.
 const ROW_MARGIN = 12
+const ROW_STEP = 46
 const rowPlace = (j: number, width: number) => {
   const { SW } = laneGeometry(width)
-  const step = (width - SW - 2 * ROW_MARGIN) / (COUNT - 1)
-  return SW / 2 + ROW_MARGIN + j * step + SW // lap position of place j
+  // close together (a Clodie and a Clodie-sized gap), centred in the track
+  const step = Math.min(ROW_STEP, (width - SW - 2 * ROW_MARGIN) / (COUNT - 1))
+  return width / 2 + (j - (COUNT - 1) / 2) * step + SW // lap position of place j
 }
 const initPhase = (i: number, width: number) => rowPlace(i, width) / SPEED
 
@@ -315,8 +345,20 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
       const arm = wrap(paint(col, 3, 2, 2), a)
       return waveOn ? wrap(arm, tf('translate', '0 0;0 -5;0 0;0 0', 4.4, -wb, '0;0.06;0.12;1', [IO, IO, LIN])) : arm
     }
+    // The footballer (the seventh): a kit, and a ball he dribbles when running and
+    // kicks out and back while standing (the right leg swings with the kick).
+    const ball = i === 6
+    const KICK = 4.8
+    const kickLeg = ball && !run && !sleep
     const leg = (col: number, alt: boolean) =>
-      wrap(paint(col, 6, 1, 2), run ? tf('translate', alt ? '0 -2;0 0;0 -2' : '0 0;0 -2;0 0', 0.4, ph) : '')
+      wrap(
+        paint(col, 6, 1, 2),
+        run
+          ? tf('translate', alt ? '0 -2;0 0;0 -2' : '0 0;0 -2;0 0', 0.4, ph)
+          : kickLeg && col === 9
+            ? tf('translate', '0 0;0 0;-3 0;4 -2;0 0;0 0', KICK, ph, '0;0.5;0.56;0.6;0.66;1')
+            : '',
+      )
     const eyes = sleep || (star && effort === 'low' && !ultra)
       ? `${r(4, 2.5, 1, 0.5, DARK)}${r(8, 2.5, 1, 0.5, DARK)}`
       : `<g>${r(4, 2, 1, 1, DARK)}${r(8, 2, 1, 1, DARK)}<animate attributeName="opacity" values="1;1;0;1" keyTimes="0;0.92;0.96;1" dur="${3 + i * 0.5}s" begin="${-ph}s" repeatCount="indefinite"/></g>`
@@ -332,7 +374,21 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const lines = run
       ? `<g>${shimmer ? `${r(-3, 2, 2, 0.5, PINK)}${r(-5, 3.5, 3, 0.5, BLUE)}${r(-4, 5, 2, 0.5, GREEN)}` : `${r(-3, 2, 2, 0.5, DIM)}${r(-5, 4, 3, 0.5, DIM)}`}<animate attributeName="opacity" values="1;0.3;1" dur="0.5s" begin="${-ph}s" repeatCount="indefinite"/></g>`
       : ''
-    let core = `${arm(0, 0)}${arm(11, 1)}${paint(2, 0, 9, 6)}${eyes}${i === 0 ? hat : i === 2 ? shades : ''}${leg(3, false)}${leg(7, false)}${leg(5, true)}${leg(9, true)}${heart}${zz}${lines}${special}`
+    const kit = ball ? `${r(2, 3, 9, 3, '#2563eb')}${r(6, 4, 1, 1, '#f4f4f5')}` : ''
+    const ballSvg = (() => {
+      if (!ball) return ''
+      const body = `${r(12, 5, 3, 3, '#f4f4f5')}${r(13, 6, 1, 1, '#27272a')}`
+      if (sleep) return `<g>${body}</g>`
+      if (run) {
+        const dribble = wrap(wrap(body, tf('translate', '0 0;0 -4;0 0', 0.4, ph)), tf('translate', '0 0;3 0;0 0', 0.8, ph))
+        return dribble
+      }
+      // kick out to a neighbour and let it roll back
+      const x = tf('translate', '0 0;0 0;26 0;26 0;0 0', KICK, ph, '0;0.58;0.78;0.84;1', [LIN, '0.1 0.6 0.35 1', LIN, IO])
+      const y = tf('translate', '0 0;0 0;0 -9;0 0;0 0', KICK, ph, '0;0.58;0.68;0.78;1', [LIN, '0.1 0.6 0.35 1', '0.65 0 0.9 0.4', LIN])
+      return wrap(wrap(body, y), x)
+    })()
+    let core = `${arm(0, 0)}${arm(11, 1)}${paint(2, 0, 9, 6)}${kit}${eyes}${i === 0 ? hat : i === 2 ? shades : ''}${leg(3, false)}${leg(7, false)}${leg(5, true)}${leg(9, true)}${ballSvg}${heart}${zz}${lines}${special}`
 
     // layers, inside out: hop, squash, sway, turn-round
     const hop = run
@@ -447,8 +503,16 @@ export const register: Register = on => {
         else lastPolled = level
         ultraSetting = isUltra
         let usd: number | undefined
+        let limitAt = 0
+        let limitPct = 0
         try {
-          usd = (await $.session.usage()).cost?.usd
+          const u = await $.session.usage()
+          usd = u.cost?.usd
+          const w = u.rateLimits.find(r => r.kind === 'five_hour')
+          if (w?.resetsAt) {
+            limitAt = Math.round(Date.parse(w.resetsAt) / 1000) * 1000
+            limitPct = w.percentUsed
+          }
         } catch {}
         const cur = await read($, stats)
         const changeLevel = level !== undefined && level !== cur.effort
@@ -457,9 +521,13 @@ export const register: Register = on => {
         const flipped = lastUltraSetting === undefined ? isUltra : isUltra !== lastUltraSetting
         lastUltraSetting = isUltra
         const changeUltra = flipped && cur.ultra !== isUltra
-        if (changeLevel || changeUsd || changeUltra)
+        const changeLimit =
+          limitAt > 0 && (limitAt !== (cur.limitResetAt ?? 0) || Math.abs(limitPct - (cur.limitPct ?? 0)) >= 1)
+        if (changeLevel || changeUsd || changeUltra || changeLimit)
           await update($, stats, s => ({
             ...s,
+            limitResetAt: changeLimit ? limitAt : s.limitResetAt,
+            limitPct: changeLimit ? limitPct : s.limitPct,
             effort: changeLevel ? level! : s.effort,
             usd: changeUsd ? usd! : s.usd,
             ultra: changeUltra ? isUltra : s.ultra,
@@ -578,7 +646,7 @@ export const register: Register = on => {
     const R0 = remaining(s, nowMs)
     const mode: Mode = s.busy ? 'run' : R0 !== null && R0 <= 0 ? 'sleep' : 'idle'
     const cols = (e.props as { bodyColumns?: number }).bodyColumns ?? 120
-    const trackW = Math.max(120, Math.min(1200, Math.round(cols * 8.6 - PILL_W - 24)))
+    const trackW = Math.max(120, Math.min(1200, Math.round(cols * 8.8 - pillWidth((s.limitResetAt ?? 0) > 0) - 16)))
     lastW = trackW
     const elapsed = isRun ? (nowMs - runStart) / 1000 : 0
     const age = settle ? (nowMs - settle.start) / 1000 : 0

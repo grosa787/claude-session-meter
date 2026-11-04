@@ -26,13 +26,14 @@ A live strip above the prompt, a hover card with the details, and six little pix
 | `CACHE` | Tokens read from the prompt cache |
 | `$` | What the session has cost so far |
 | bar + clock | The prompt cache draining to zero — 1 hour by default, `/meter 5m` for the 5‑minute cache |
+| `5H` | Time until your 5‑hour usage limit resets (hours:minutes), with a marker that goes green → yellow → red as the limit fills. Shown only when your account reports a limit |
 
 Numbers are abbreviated as **K / M / B**. Every segment has a fixed width, so nothing jumps when the numbers change.
 The countdown runs *inside* the picture, so the strip is never redrawn on a timer.
 
 ### Hover for the full picture
 
-Hover the strip and a card opens above it with exact counts, cache‑write tokens, cache hit rate and the number of requests. `/meter` shows the same card in a pane.
+Hover the strip and a card opens above it with exact counts, cache‑write tokens, cache hit rate, the number of requests and how much of the 5‑hour limit is used. `/meter` shows the same card in a pane.
 
 <div align="center">
 <img src="docs/card.png" alt="The hover card" width="320">
@@ -40,12 +41,13 @@ Hover the strip and a card opens above it with exact counts, cache‑write token
 
 ### Clodies
 
-Six pixel Clodies live on the left of the strip.
+Seven pixel Clodies live on the left of the strip, in an evenly spaced row.
 
 - **Working** – they run to the right in a line, one after another, and re‑enter from the left.
 - **Done** – they keep walking, slowing down smoothly, and settle into an even row.
 - **Standing** – each has its own routine: a double jump, waving in turns, swaying, stretching, a turn‑around with a little heart.
 - **Cache gone cold** – they fall asleep.
+- **The footballer** – the seventh Clodie wears a blue kit. He dribbles a ball while the others run, and when standing he kicks it out to a neighbour and lets it roll back.
 - **Five idle minutes** – they pass a wave along the row, and shimmer in turn once a minute.
 
 ### The sixth Clodie shows your reasoning level
