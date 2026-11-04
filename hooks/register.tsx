@@ -261,6 +261,7 @@ const laneGeometry = (width: number) => {
 // The row keeps a margin from the posts at both ends so nobody touches an edge.
 const ROW_MARGIN = 12
 const ROW_STEP = 46
+const STOP_MIN = 110 // the shortest walk (px) a Clodie takes to come to rest
 const rowPlace = (j: number, width: number) => {
   const { SW } = laneGeometry(width)
   // close together (a Clodie and a Clodie-sized gap), centred in the track
@@ -516,21 +517,22 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
       const s1 = settle.h[i]
       const D = (((s1 - s0) % L) + L) % L
       if (D > 1) {
-        const total = (2 * D) / SPEED
+        const total = (3 * D) / SPEED // cubic ease-out: it starts at running speed (3D / total)
         const xa = (v: number) => v - SW // lap position -> x of the Clodie's centre
         const xh = xa(s1) // where it ends up: the static position, so a player that ignores the animation still shows the final row
         const move = (from: number, to: number, dur: number, begin: number, spline: string, freeze: boolean) =>
           `<animateTransform attributeName="transform" type="translate" values="${from.toFixed(1)} 0;${to.toFixed(1)} 0" calcMode="spline" keySplines="${spline}" dur="${dur.toFixed(3)}s" begin="${begin.toFixed(3)}s" ${freeze ? 'fill="freeze"' : ''}/>`
-        const END = '0.3333 0.6667 0.6667 1'
+        const END = '0.3333 1 0.6667 1' // cubic ease-out
         let anim: string
         if (s0 + D <= L) {
           anim = move(xa(s0) - xh, 0, total, -settle.age, END, true)
         } else {
           // runs off the right edge and comes back in from the left, still slowing
-          const ts = 1 - Math.sqrt(1 - (L - s0) / D)
+          const q = (L - s0) / D
+          const ts = 1 - Math.pow(1 - q, 1 / 3)
           const d1 = total * ts
-          const y1 = 2 / (2 - ts) / 3
-          const y2 = 1 - (2 - 2 * ts) / (2 - ts) / 3
+          const y1 = ts / q
+          const y2 = 1 - (ts * (1 - ts) * (1 - ts)) / q
           anim =
             move(xa(s0) - xh, xa(L) - xh, d1, -settle.age, `0.3333 ${y1.toFixed(4)} 0.6667 ${y2.toFixed(4)}`, false) +
             move(xa(0) - xh, 0, total - d1, d1 - settle.age, END, true)
@@ -735,11 +737,16 @@ export const register: Register = on => {
       const cur = base.map(b => ((((b + elapsed) % lap) + lap) % lap) * SPEED)
       const dist = (a: number, b: number) => (((b - a) % L) + L) % L
       const placeAt = (j: number) => rowPlace(j, lastW)
+      // Take the shift whose shortest walk is still at least STOP_MIN px (a stop
+      // that is too short looks like a snap); among those the shortest on average.
       let bestK = 0
-      let bestSum = Infinity
+      let bestScore = Infinity
       for (let k = 0; k < COUNT; k++) {
-        const sum = cur.reduce((a, c, i) => a + dist(c, placeAt((i + k) % COUNT)), 0)
-        if (sum < bestSum) { bestSum = sum; bestK = k }
+        const ds = cur.map((c, i) => dist(c, placeAt((i + k) % COUNT)))
+        const shortest = Math.min(...ds)
+        const avg = ds.reduce((a, d) => a + d, 0) / COUNT
+        const score = shortest >= STOP_MIN ? avg : 1e6 - shortest
+        if (score < bestScore) { bestScore = score; bestK = k }
       }
       const home = cur.map((_, i) => placeAt((i + bestK) % COUNT))
       bases = home.map(h => h / SPEED)
