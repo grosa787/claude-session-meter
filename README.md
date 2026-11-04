@@ -26,7 +26,7 @@ A live strip above the prompt, a hover card with the details, and six little pix
 | `CACHE` | Tokens read from the prompt cache |
 | `$` | What the session has cost so far |
 | bar + clock | The prompt cache draining to zero — 1 hour by default, `/meter 5m` for the 5‑minute cache |
-| `CTX` | How full the context window is, as `used/window` in thousands of tokens, e.g. `123/1000k` (marker green → yellow → red) |
+| `CTX` | Context used, as `used/limit` in thousands of tokens, e.g. `123/600k`. The limit follows your `/autocompact` setting for the current model and falls back to the model's whole window (e.g. `1000k`) when none is set; it updates as soon as you change it. Marker green → yellow → red |
 | `5H` | Time until your 5‑hour usage limit resets (hours:minutes), with a marker that goes green → yellow → red as the limit fills. Shown only when your account reports a limit |
 
 Numbers are abbreviated as **K / M / B**. Every segment has a fixed width, so nothing jumps when the numbers change.

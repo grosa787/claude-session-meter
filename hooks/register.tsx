@@ -7,7 +7,7 @@ const PANE = 'session-meter'
 const empty: Stats = {
   steps: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
   lastAt: 0, ttl: '1h', usd: 0, now: 0, frame: 0, busy: false, hist: [], effort: 'medium', ultra: false, limitResetAt: 0, limitPct: 0,
-  ctxTokens: 0, ctxWindow: 0, goals: 0, goalAt: 0, fx: null, longTool: false, intent: '',
+  ctxTokens: 0, ctxWindow: 0, ctxLimit: 0, goals: 0, goalAt: 0, fx: null, longTool: false, intent: '',
 }
 const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
   shape: 'stats-4',
@@ -133,15 +133,17 @@ const pillSvg = (s: Stats, nowMs: number) => {
   const H = 30
   // context fill as "used/windowk" in thousands, e.g. 120/1000k
   const kk = (v: number) => String(Math.round(v / 1000))
-  const hasCtx = (s.ctxWindow ?? 0) > 0
-  const ctxPct = hasCtx ? ((s.ctxTokens ?? 0) / s.ctxWindow) * 100 : 0
+  // the denominator is where auto-compact kicks in (the /autocompact setting), else the whole window
+  const ctxMax = (s.ctxLimit ?? 0) > 0 ? s.ctxLimit : (s.ctxWindow ?? 0)
+  const hasCtx = ctxMax > 0
+  const ctxPct = hasCtx ? ((s.ctxTokens ?? 0) / ctxMax) * 100 : 0
   const ctxColor = ctxPct < 60 ? GREEN : ctxPct < 85 ? '#facc15' : WARN
   const chips: [string, string, string, number][] = [
     ['IN', short(s.input), BLUE, 5],
     ['OUT', short(s.output), PINK, 5],
     ['CACHE', short(s.cacheRead), GREEN, 5],
   ]
-  if (hasCtx) chips.push(['CTX', `${kk(s.ctxTokens ?? 0)}/${kk(s.ctxWindow)}k`, ctxColor, 9])
+  if (hasCtx) chips.push(['CTX', `${kk(s.ctxTokens ?? 0)}/${kk(ctxMax)}k`, ctxColor, 9])
   let body = ''
   let x = 0
   for (const [label, value, c, room] of chips) {
@@ -585,6 +587,7 @@ export const register: Register = on => {
           level = normLevel(row?.value) ?? level
         } catch {}
         let isUltra = false
+        let modelCfg: Record<string, { autoCompactWindow?: number }> | undefined
         try {
           const st = (await $.settings.read()) as Record<string, unknown>
           // max is session-only: picking it removes effortLevel from the settings
@@ -592,6 +595,7 @@ export const register: Register = on => {
           if (fromSettings) seenSettingLevel = true
           level = level ?? fromSettings ?? (seenSettingLevel ? "max" : undefined)
           isUltra = st.ultracode === true
+          modelCfg = st.modelSettings as typeof modelCfg
         } catch {}
         // a polled level only counts when it CHANGES: the level the last request
         // went out with (turn.step) is otherwise the truth
@@ -603,11 +607,20 @@ export const register: Register = on => {
         let limitPct = 0
         let ctxTokens = -1
         let ctxWindow = 0
+        let ctxLimit = 0
         try {
           const u = await $.session.usage()
           usd = u.cost?.usd
           ctxTokens = u.context.tokens ?? 0
           ctxWindow = u.context.window
+          // /autocompact N is stored per model under modelSettings.<model>.autoCompactWindow
+          let model = ''
+          try {
+            model = await $.session.model()
+          } catch {}
+          const cfg = modelCfg?.[model] ?? Object.entries(modelCfg ?? {}).find(([k]) => model !== '' && (model.startsWith(k) || k.startsWith(model)))?.[1]
+          const at = cfg?.autoCompactWindow
+          ctxLimit = typeof at === 'number' && at > 0 ? Math.min(at, ctxWindow) : 0
           const w = u.rateLimits.find(r => r.kind === 'five_hour')
           if (w?.resetsAt) {
             limitAt = Math.round(Date.parse(w.resetsAt) / 1000) * 1000
@@ -624,7 +637,9 @@ export const register: Register = on => {
         const changeCtx =
           ctxTokens >= 0 &&
           ctxWindow > 0 &&
-          (Math.round(ctxTokens / 1000) !== Math.round((cur.ctxTokens ?? 0) / 1000) || ctxWindow !== (cur.ctxWindow ?? 0))
+          (Math.round(ctxTokens / 1000) !== Math.round((cur.ctxTokens ?? 0) / 1000) ||
+            ctxWindow !== (cur.ctxWindow ?? 0) ||
+            ctxLimit !== (cur.ctxLimit ?? 0))
         // a round sum ($10, $20 ...) was just passed
         const crossed = changeUsd && usd! > cur.usd && Math.floor(usd! / 10) > Math.floor(cur.usd / 10)
         if (crossed && isRun) partyPending = true
@@ -637,6 +652,7 @@ export const register: Register = on => {
             ...s,
             ctxTokens: changeCtx ? ctxTokens : s.ctxTokens,
             ctxWindow: changeCtx ? ctxWindow : s.ctxWindow,
+            ctxLimit: changeCtx ? ctxLimit : s.ctxLimit,
             fx: partyNow ? { kind: 'party', at: tNow } : s.fx,
             limitResetAt: changeLimit ? limitAt : s.limitResetAt,
             limitPct: changeLimit ? limitPct : s.limitPct,

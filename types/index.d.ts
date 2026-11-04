@@ -17,6 +17,7 @@ export type Stats = {
   limitPct: number
   ctxTokens: number
   ctxWindow: number
+  ctxLimit: number
   goals: number
   goalAt: number
   fx: { kind: string; at: number } | null
