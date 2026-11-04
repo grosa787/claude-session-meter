@@ -201,13 +201,15 @@ ${timeSvg(w.R, lEnd, 19.5, 12, TEXT, 400, w.fmt, w.cold)}</g>`
       // faces, from the window upwards: 5H, 7D, 5H again (so the last turn lands on an
       // identical face and the loop is seamless). The whole plate - marker, label and
       // time - turns as one: the shown face leaves downwards, the next arrives from above.
-      const PERIOD = 240
+      // 5H holds for 2:30, then 7D for 30 s, three minutes in all
+      const PERIOD = 180
+      const SHOW_5H = 150
       const TURN_S = 0.9
-      const t1 = (PERIOD / 2 - TURN_S) / PERIOD
-      const t2 = 0.5
+      const t1 = (SHOW_5H - TURN_S) / PERIOD
+      const t2 = SHOW_5H / PERIOD
       const t3 = (PERIOD - TURN_S) / PERIOD
       const phase = (nowMs / 1000) % PERIOD // wall-clock phase: redraws never restart the wheel
-      const spin = `<animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 ${H};0 ${H};0 ${2 * H}" keyTimes="0;${t1.toFixed(5)};${t2};${t3.toFixed(5)};1" calcMode="spline" keySplines="0 0 1 1;0.45 0 0.55 1;0 0 1 1;0.45 0 0.55 1" dur="${PERIOD}s" begin="${(-phase).toFixed(2)}s" repeatCount="indefinite"/>`
+      const spin = `<animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 ${H};0 ${H};0 ${2 * H}" keyTimes="0;${t1.toFixed(5)};${t2.toFixed(5)};${t3.toFixed(5)};1" calcMode="spline" keySplines="0 0 1 1;0.45 0 0.55 1;0 0 1 1;0.45 0 0.55 1" dur="${PERIOD}s" begin="${(-phase).toFixed(2)}s" repeatCount="indefinite"/>`
       readout = `<clipPath id="wheel"><rect x="${xd + 1}" y="0" width="${lEnd - xd + 8}" height="${H}"/></clipPath>
 <g clip-path="url(#wheel)"><g>${spin}${face(wins[0], 0)}${face(wins[1], -H)}${face(wins[0], -2 * H)}</g></g>`
     }

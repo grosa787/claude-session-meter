@@ -27,7 +27,7 @@ A live strip above the prompt, a hover card with the details, and six little pix
 | `$` | What the session has cost so far |
 | bar + clock | The prompt cache draining to zero — 1 hour by default, `/meter 5m` for the 5‑minute cache |
 | `CTX` | Context used, as `used/limit` in thousands of tokens, e.g. `123/600k`. The limit follows your `/autocompact` setting for the current model and falls back to the model's whole window (e.g. `1000k`) when none is set; it updates as soon as you change it. Marker green → yellow → red |
-| `5H` / `7D` | Time until your 5‑hour and 7‑day usage limits reset (`3:26` / `3d03h`). When both are known, one readout turns like a wheel every two minutes, 5H → 7D → 5H, each face rising from below. The marker beside it runs smoothly from green through yellow to red as that limit fills. Shown only when your account reports the limit |
+| `5H` / `7D` | Time until your 5‑hour and 7‑day usage limits reset (`3:26` / `3d03h`). When both are known, one readout turns like a wheel: 5H stays for 2:30, then 7D for 30 s, and back; the whole plate scrolls down as one and the next face arrives from above. The marker beside it runs smoothly from green through yellow to red as that limit fills. Shown only when your account reports the limit |
 
 Numbers are abbreviated as **K / M / B**. Every segment has a fixed width, so nothing jumps when the numbers change.
 The countdown runs *inside* the picture, so the strip is never redrawn on a timer.
