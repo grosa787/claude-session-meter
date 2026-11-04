@@ -153,7 +153,7 @@ const pillSvg = (s: Stats, nowMs: number) => {
   const ctxPct = hasCtx ? ((s.ctxTokens ?? 0) / ctxMax) * 100 : 0
   const ctxColor = ctxPct < 60 ? GREEN : ctxPct < 85 ? '#facc15' : WARN
   const chips: [string, string, string, number][] = [
-    ['IN', short(s.input), BLUE, 5],
+    ['IN', short(s.input + s.cacheRead + s.cacheWrite), BLUE, 5], // everything that went in, as the system counts it (new + cached)
     ['OUT', short(s.output), PINK, 5],
     ['CACHE', short(s.cacheRead), GREEN, 5],
   ]
@@ -227,7 +227,7 @@ const cardSvg = (s: Stats, nowMs: number) => {
   const total = s.input + s.cacheRead + s.cacheWrite
   const hit = total > 0 ? Math.round((s.cacheRead / total) * 100) : 0
   const parts: [string, number, string][] = [
-    ['Input', s.input, BLUE],
+    ['Input (uncached)', s.input, BLUE],
     ['Output', s.output, PINK],
     ['Cache read', s.cacheRead, GREEN],
     ['Cache write', s.cacheWrite, ORANGE],
@@ -972,7 +972,8 @@ export const register: Register = on => {
       )
     }
     const parts: [string, number][] = [
-      ['Input', s.input],
+      ['Input (total)', s.input + s.cacheRead + s.cacheWrite],
+      ['Input (uncached)', s.input],
       ['Output', s.output],
       ['Cache read', s.cacheRead],
       ['Cache write', s.cacheWrite],
@@ -990,7 +991,7 @@ export const register: Register = on => {
         </Box>
         <Box key="meter" hover={{ scope: 'session-meter' }}>
           <Text>
-            ${s.usd.toFixed(2)} <Text dimColor>· IN {short(s.input)} OUT {short(s.output)} CACHE {short(s.cacheRead)}</Text>
+            ${s.usd.toFixed(2)} <Text dimColor>· IN {short(s.input + s.cacheRead + s.cacheWrite)} OUT {short(s.output)} CACHE {short(s.cacheRead)}</Text>
           </Text>
         </Box>
       </Box>
@@ -1009,7 +1010,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Text bold>Session ${s.usd.toFixed(4)}</Text>
-        <Text>Input: {n(s.input)}</Text>
+        <Text>Input: {n(s.input + s.cacheRead + s.cacheWrite)} (uncached {n(s.input)})</Text>
         <Text>Output: {n(s.output)}</Text>
         <Text>Cache read: {n(s.cacheRead)}</Text>
         <Text>Cache write: {n(s.cacheWrite)}</Text>

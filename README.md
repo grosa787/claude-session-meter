@@ -21,7 +21,7 @@ A live strip above the prompt, a hover card with the details, and six little pix
 
 | Segment | What it shows |
 | --- | --- |
-| `IN` | Input tokens for the session (uncached) |
+| `IN` | All input tokens for the session, as the API counts them: new + cache read + cache write |
 | `OUT` | Output tokens |
 | `CACHE` | Tokens read from the prompt cache |
 | `$` | What the session has cost so far |
