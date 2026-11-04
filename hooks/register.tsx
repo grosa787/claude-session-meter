@@ -423,7 +423,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const kickLeg = ball && !run && !sleep
     const leg = (col: number, alt: boolean) =>
       wrap(
-        paint(col, 6, 1, 2),
+        `${paint(col, 6, 1, 2)}${ball ? r(col, 6, 1, 1, '#f4f4f5') : ''}`, // the footballer's socks
         run
           ? tf('translate', alt ? '0 -2;0 0;0 -2' : '0 0;0 -2;0 0', 0.4, ph)
           : kickLeg && col === 9
@@ -433,8 +433,23 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const eyes = sleep || (star && effort === 'low' && !ultra)
       ? `${r(4, 2.5, 1, 0.5, DARK)}${r(8, 2.5, 1, 0.5, DARK)}`
       : `<g>${r(4, 2, 1, 1, DARK)}${r(8, 2, 1, 1, DARK)}<animate attributeName="opacity" values="1;1;0;1" keyTimes="0;0.92;0.96;1" dur="${3 + i * 0.5}s" begin="${-ph}s" repeatCount="indefinite"/></g>`
-    const hat = `<polygon points="${-2.5 * U},${-8 * U} ${2.5 * U},${-8 * U} 0,${-10.5 * U}" fill="#60a5fa"/>`
-    const shades = r(3, 1.5, 7, 1.5, '#0b0b0c')
+    // Everyone has a costume of their own (rows above the body are negative):
+    // a wizard with a star, a detective, a rocker, a builder, someone in a bow
+    // and the footballer's socks (see leg()).
+    const HATS = [
+      `${r(3, -1, 7, 1, '#2563eb')}${r(4, -2, 5, 1, '#3b82f6')}${r(5, -3, 3, 1, '#3b82f6')}${r(6, -4, 1, 1, '#3b82f6')}${r(6, -2, 1, 1, '#facc15')}`, // wizard
+      `${r(2, -1, 9, 1, '#78350f')}${r(4, -2, 5, 1, '#1c1917')}${r(4, -3, 5, 1, '#92400e')}${r(6, -3, 1, 1, '#78350f')}`, // fedora
+      `${r(2, 0, 9, 1, '#ef4444')}${r(5, 0, 1, 1, '#fecaca')}${r(8, 0, 1, 1, '#fecaca')}${r(11, 0, 2, 1, '#ef4444')}${r(12, 1, 1, 2, '#dc2626')}`, // bandana
+      `${r(2, -1, 9, 1, '#facc15')}${r(3, -2, 7, 1, '#facc15')}${r(5, -3, 3, 1, '#eab308')}${r(6, -2, 1, 1, '#fff7ed')}`, // hard hat
+      `${r(6, -2, 2, 2, PINK)}${r(8, -1, 1, 1, '#be185d')}${r(9, -2, 2, 2, PINK)}`, // bow
+    ]
+    const FACES = [
+      '',
+      r(5, 3, 3, 1, '#78350f'), // moustache
+      r(3, 1.5, 7, 1.5, '#0b0b0c'), // shades
+      '',
+      `${r(3, 3, 1, 1, '#fda4af')}${r(9, 3, 1, 1, '#fda4af')}`, // cheeks
+    ]
     const heart =
       i === 4 && mode === 'idle'
         ? `<g>${r(5, -3, 1, 1, PINK)}${r(7, -3, 1, 1, PINK)}${r(5, -2, 3, 1, PINK)}${r(6, -1, 1, 1, PINK)}${tf('translate', '0 4;0 -7', 3.2, ph)}<animate attributeName="opacity" values="0;1;0" keyTimes="0;0.25;1" dur="3.2s" begin="${-ph}s" repeatCount="indefinite"/></g>`
@@ -455,7 +470,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
         : i < 5 && outfit === 'party'
           ? `<polygon points="${-2.5 * U},${-8 * U} ${2.5 * U},${-8 * U} 0,${-11.5 * U}" fill="${PARTY[i]}"/><rect x="${-1 * U}" y="${-9.5 * U}" width="${2 * U}" height="${U / 2}" fill="#f4f4f5"/>`
           : ''
-    const headgear = `${cap || (i === 0 ? hat : '')}${i === 2 ? shades : ''}`
+    const headgear = `${cap || (HATS[i] ?? '')}${FACES[i] ?? ''}`
     const moon = outfit === 'night' && i === 1 ? `${r(11, -3, 2, 1, '#fde68a')}${r(11, -2, 1, 1, '#fde68a')}${r(11, -1, 2, 1, '#fde68a')}` : ''
     const mug =
       outfit === 'morning' && (i === 1 || i === 3)
