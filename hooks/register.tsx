@@ -71,19 +71,18 @@ const digitsSvg = (R0: number, xEnd: number, y: number, size: number, fmt: 'ms' 
         { N: 10, unit: 1, pos: 4 }, // seconds
       ]
   let out = ''
+  const lh = Math.round(size * 1.4) // distance between numerals on a strip
+  const top = size * 0.85 // baseline inside the window
   for (const { N, unit, pos, label } of cols as { N: number; unit: number; pos: number; label?: (v: number) => string }[]) {
     const P = N * unit
-    const a = R0 % P
-    const begin = -(P - a)
-    for (let v = 0; v < N; v++) {
-      const k1 = (P - (v + 1) * unit) / P
-      const k2 = (P - v * unit) / P
-      const pts: [number, number][] = [[0, 0]]
-      if (k1 > 0) pts.push([k1, 1])
-      else pts[0] = [0, 1]
-      if (k2 < 1) pts.push([k2, 0])
-      out += `<text x="${(x0 + pos * cw).toFixed(1)}" y="${y}" opacity="${pts[0][1]}" font-size="${size}">${label ? label(v) : v}<animate attributeName="opacity" calcMode="discrete" values="${pts.map(p => p[1]).join(';')}" keyTimes="${pts.map(p => p[0].toFixed(5)).join(';')}" dur="${P}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite"/></text>`
-    }
+    const begin = -(P - (R0 % P))
+    const width = (label ? 2 : 1) * cw + 1
+    // the strip: 0 .. N-1 stacked downwards; the window shows one numeral, and
+    // the strip steps up as the time runs down (N-1 first, 0 last)
+    const rows = Array.from({ length: N }, (_, v) => `<tspan x="0" y="${(top + v * lh).toFixed(1)}">${label ? label(v) : v}</tspan>`).join('')
+    const values = Array.from({ length: N }, (_, j) => `0 ${-(N - 1 - j) * lh}`).join(';')
+    const keyTimes = Array.from({ length: N }, (_, j) => (j / N).toFixed(5)).join(';')
+    out += `<svg x="${(x0 + pos * cw).toFixed(1)}" y="${(y - top).toFixed(1)}" width="${width.toFixed(1)}" height="${(size * 1.25).toFixed(1)}"><g><animateTransform attributeName="transform" type="translate" calcMode="discrete" values="${values}" keyTimes="${keyTimes}" dur="${P}s" begin="${begin.toFixed(2)}s" repeatCount="indefinite"/><text font-size="${size}">${rows}</text></g></svg>`
   }
   const lit = (ch: string, pos: number) => `<text x="${(x0 + pos * cw).toFixed(1)}" y="${y}" font-size="${size}">${ch}</text>`
   out += fmt === 'dh' ? lit('d', 1) + lit('h', 4) : lit(':', fmt === 'hm' ? 1 : 2)
@@ -199,16 +198,18 @@ ${timeSvg(w.R, lEnd, 19.5, 12, TEXT, 400, w.fmt, w.cold)}</g>`
     if (wins.length === 1) {
       readout = face(wins[0], 0)
     } else {
-      // faces: 5H, 7D, 5H again (so the last turn lands on an identical face and the loop is seamless)
+      // faces, from the window upwards: 5H, 7D, 5H again (so the last turn lands on an
+      // identical face and the loop is seamless). The whole plate - marker, label and
+      // time - turns as one: the shown face leaves downwards, the next arrives from above.
       const PERIOD = 240
-      const TURN_S = 0.7
+      const TURN_S = 0.9
       const t1 = (PERIOD / 2 - TURN_S) / PERIOD
       const t2 = 0.5
       const t3 = (PERIOD - TURN_S) / PERIOD
       const phase = (nowMs / 1000) % PERIOD // wall-clock phase: redraws never restart the wheel
-      const spin = `<animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 -${H};0 -${H};0 -${2 * H}" keyTimes="0;${t1.toFixed(5)};${t2};${t3.toFixed(5)};1" calcMode="spline" keySplines="0 0 1 1;0.45 0 0.55 1;0 0 1 1;0.45 0 0.55 1" dur="${PERIOD}s" begin="${(-phase).toFixed(2)}s" repeatCount="indefinite"/>`
+      const spin = `<animateTransform attributeName="transform" type="translate" values="0 0;0 0;0 ${H};0 ${H};0 ${2 * H}" keyTimes="0;${t1.toFixed(5)};${t2};${t3.toFixed(5)};1" calcMode="spline" keySplines="0 0 1 1;0.45 0 0.55 1;0 0 1 1;0.45 0 0.55 1" dur="${PERIOD}s" begin="${(-phase).toFixed(2)}s" repeatCount="indefinite"/>`
       readout = `<clipPath id="wheel"><rect x="${xd + 1}" y="0" width="${lEnd - xd + 8}" height="${H}"/></clipPath>
-<g clip-path="url(#wheel)"><g>${spin}${face(wins[0], 0)}${face(wins[1], H)}${face(wins[0], 2 * H)}</g></g>`
+<g clip-path="url(#wheel)"><g>${spin}${face(wins[0], 0)}${face(wins[1], -H)}${face(wins[0], -2 * H)}</g></g>`
     }
     body += `<line x1="${xd}" y1="6" x2="${xd}" y2="${H - 6}" stroke="${LINE}"/>
 ${readout}`
