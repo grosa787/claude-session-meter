@@ -9,7 +9,7 @@ A live strip above the prompt, a hover card with the details, and six little pix
 ![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-d97757)
 ![Surface: Desktop](https://img.shields.io/badge/surface-Desktop-4b4a46)
 
-<img src="docs/strip.png" alt="The session-meter strip above the Claude Code prompt" width="900">
+<img src="docs/strip-v2.png" alt="The session-meter strip above the Claude Code prompt" width="900">
 
 </div>
 
