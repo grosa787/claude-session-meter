@@ -82,6 +82,10 @@ claude plugin install session-meter --marketplace grosa787/claude-session-meter
 
 Open sessions need a restart to pick it up.
 
+### Updating
+
+Every push to this repository is a new version. To get it, run `/plugin marketplace update` and then `/plugin update session-meter` (or turn on auto-update for this marketplace in `/plugin`), and restart open sessions.
+
 ## Commands
 
 | Command | Does |

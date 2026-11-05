@@ -1,6 +1,5 @@
 {
   "name": "session-meter",
-  "version": "0.1.0",
   "description": "A live strip above the Claude Code prompt: session cost, prompt-cache countdown, input/output/cache-read tokens, and animated pixel Clodies that run while Claude works.",
   "license": "MIT",
   "keywords": ["cost", "tokens", "prompt-cache", "statistics", "ui", "animation"],
