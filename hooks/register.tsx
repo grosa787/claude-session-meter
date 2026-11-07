@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Stats } from '../types'
+import { LOFI_MSG, TRACKS, pickLofi, prefetchLofi, pressLofi, resetLofi, thumbSvg } from './lofi'
 
 const PANE = 'session-meter'
 const empty: Stats = {
@@ -12,13 +13,13 @@ const empty: Stats = {
 const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
   shape: 'stats-4',
 })
-// the lo-fi stream is playing (the Play button shows a stop square)
-const lofi = atom({ plugin: 'session-meter', key: 'lofi' } as const, false)
-const LOFI_URL = 'https://youtu.be/tRsQsTMvPNg'
-const LOFI_PATH = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin'
+// the lo-fi player's state (hooks/lofi.ts writes it): the track playing, the menu, the thumbnails
+const lofiTrack = atom({ plugin: 'session-meter', key: 'lofiTrack' } as const, '')
+const lofiMenu = atom({ plugin: 'session-meter', key: 'lofiMenu' } as const, false)
+const lofiThumbs = atom({ plugin: 'session-meter', key: 'lofiThumbs' } as const, {} as Record<string, string>)
 const BTN_W = 40 // room the Play button takes at the right of the strip
-const T_NEED = 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp'
-const T_FAIL = 'Lo-fi did not start: the stream is unavailable'
+LOFI_MSG.need = 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp'
+LOFI_MSG.fail = 'Lo-fi did not start: the stream is unavailable'
 
 const n = (v: number) => v.toLocaleString('en-US')
 const ttlSec = (s: Stats) => (s.ttl === '1h' ? 3600 : 300)
@@ -650,60 +651,6 @@ const loadTotals = async ($: any): Promise<Saved | null> => {
   }
 }
 
-// The lo-fi player: mpv playing the stream's sound only, no window. The child
-// lives as long as the loop reading it; ending the loop (Stop), the stream
-// ending, or the module unloading (Claude closed, the mod reloaded) kills it.
-let player: { return?: (v?: unknown) => unknown } | null = null
-const find = async ($: any, bin: string) => {
-  try {
-    const r = await $.process.run(['/usr/bin/which', bin], { env: { PATH: LOFI_PATH }, timeoutMs: 5000 })
-    return r.exitCode === 0 ? String(r.stdout).trim() : ''
-  } catch {
-    return ''
-  }
-}
-const stopLofi = async ($: any) => {
-  const p = player
-  player = null
-  await update($, lofi, () => false)
-  try { await p?.return?.() } catch {}
-}
-const startLofi = async ($: any) => {
-  const mpv = await find($, 'mpv')
-  const ytdl = await find($, 'yt-dlp')
-  if (!mpv || !ytdl) {
-    await $.ui.toast(T_NEED)
-    return
-  }
-  const stream = $.process.spawn({
-    argv: [
-      mpv, '--no-config', '--no-video', '--no-terminal', '--force-window=no', '--idle=no',
-      '--ytdl-format=bestaudio/best', `--script-opts=ytdl_hook-ytdl_path=${ytdl}`, LOFI_URL,
-    ],
-    env: { PATH: LOFI_PATH },
-  })
-  player = stream
-  await update($, lofi, () => true)
-  void (async () => {
-    let failed = false
-    try {
-      for await (const _ of stream) if (player !== stream) break
-    } catch {
-      failed = true
-    }
-    // it ended by itself (the stream dropped, mpv failed): show Play again
-    if (player === stream) {
-      player = null
-      await update($, lofi, () => false)
-      if (failed) await $.ui.toast(T_FAIL)
-    }
-  })()
-}
-const toggleLofi = async ($: any) => {
-  if (player) await stopLofi($)
-  else await startLofi($)
-}
-
 export const register: Register = on => {
   // Each Clodie's phase on the loop, in seconds (null: evenly spaced round it).
   // A run advances every phase by the same time, so the spacing is kept.
@@ -720,8 +667,10 @@ export const register: Register = on => {
 
 
   on('session.start', async ($, e, next) => {
-    // a reload killed any player the module had: the button starts at Play
-    await update($, lofi, () => false)
+    // a reload killed any player the module had: the button starts at Play;
+    // the streams' addresses and thumbnails are fetched in the background
+    await resetLofi($)
+    void prefetchLofi($)
     await $.command.register({
       name: 'meter',
       description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset',
@@ -997,7 +946,9 @@ export const register: Register = on => {
     const R0 = remaining(s, nowMs)
     const mode: Mode = s.busy ? 'run' : R0 !== null && R0 <= 0 ? 'sleep' : 'idle'
     const cols = (e.props as { bodyColumns?: number }).bodyColumns ?? 120
-    const playing = await read($, lofi)
+    const playing = await read($, lofiTrack)
+    const menuOpen = await read($, lofiMenu)
+    const thumbs = await read($, lofiThumbs)
     const hasBtn = !!t.Button
     const pill = pillSvg(s, nowMs, hasBtn)
     const pillW = Number(pill.match(/ width="(\d+)"/)?.[1] ?? 520)
@@ -1008,10 +959,23 @@ export const register: Register = on => {
         <t.Button
           key="lofi"
           plain
-          onPress={() => { void toggleLofi($) }}
+          onPress={() => { void pressLofi($) }}
         >
-          <Text color={playing ? ACCENT : DIM}>{playing ? '\u25A0' : '\u25B6\uFE0E'}</Text>
+          <Text color={playing ? ACCENT : menuOpen ? TEXT : DIM}>{playing ? '\u25A0' : '\u25B6\uFE0E'}</Text>
         </t.Button>
+      </Box>
+    ) : null
+    // the track menu, opened upwards above the button: thumbnail, name, channel
+    const menu = hasBtn && menuOpen ? (
+      <Box flexDirection="column" borderStyle="round" borderColor={LINE} paddingX={1} paddingY={1} gap={1}>
+        {TRACKS.map(tr => (
+          <Box key={`lofi-row-${tr.id}`} alignItems="center" gap={1}>
+            {t.Svg ? <t.Svg source={thumbSvg(thumbs[tr.vid])} alt={tr.name} /> : null}
+            <t.Button key={`lofi-${tr.id}`} plain onPress={() => { void pickLofi($, tr.id) }}>
+              {tr.name} <Text dimColor>{tr.by}</Text>
+            </t.Button>
+          </Box>
+        ))}
       </Box>
     ) : null
     lastW = trackW
@@ -1042,6 +1006,7 @@ export const register: Register = on => {
           <Box display="none" hover={reveal}>
             <Svg source={cardSvg(s, nowMs)} alt="Session statistics" />
           </Box>
+          {menu}
           <Box justifyContent="space-between" alignItems="center" width="100%">
             <Box flexGrow={1} flexShrink={1} overflow="hidden">
               <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored, fx)} alt="Clodies" />
@@ -1072,6 +1037,7 @@ export const register: Register = on => {
             </Box>
           ))}
         </Box>
+        {menu}
         <Box alignItems="center" gap={1}>
           <Box key="meter" hover={{ scope: 'session-meter' }}>
             <Text>

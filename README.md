@@ -42,7 +42,14 @@ Hover the strip and a card opens above it with exact counts, cache‑write token
 
 ### Lo‑fi button
 
-At the right end of the strip there is a **▶** button. Press it and a lo‑fi live stream ([this one](https://youtu.be/tRsQsTMvPNg)) starts playing in the background – sound only, no window, no video. The button turns into **■**; press it again to stop. The music also stops when Claude Code closes.
+At the right end of the strip there is a **▶** button. Press it and a small menu opens upwards with two live streams, each with its YouTube preview:
+
+- **lofi hip hop radio** – [Lofi Girl](https://www.youtube.com/watch?v=rFZHOHl-L8A)
+- **Claude FM** – [Claude](https://youtu.be/tRsQsTMvPNg)
+
+Pick one and it plays in the background – sound only, no window, no video. The button turns into **■**; press it to stop. The music also stops when Claude Code closes.
+
+The music starts the moment you pick: while the menu is open, both streams are already loading, paused, and the pick just unpauses one. The streams' addresses and previews are looked up in the background when a session starts.
 
 It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/yt-dlp); if they are missing, the button tells you to install them:
 
