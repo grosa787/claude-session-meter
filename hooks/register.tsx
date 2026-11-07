@@ -16,9 +16,7 @@ const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
 const lofi = atom({ plugin: 'session-meter', key: 'lofi' } as const, false)
 const LOFI_URL = 'https://youtu.be/tRsQsTMvPNg'
 const LOFI_PATH = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin'
-const BTN_W = 34 // room the Play button takes at the right of the strip
-const T_PLAY = 'Play lo-fi'
-const T_STOP = 'Stop lo-fi'
+const BTN_W = 40 // room the Play button takes at the right of the strip
 const T_NEED = 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp'
 const T_FAIL = 'Lo-fi did not start: the stream is unavailable'
 
@@ -1006,11 +1004,10 @@ export const register: Register = on => {
     const trackW = Math.max(120, Math.min(1200, Math.round(cols * 8.8 - pillW - 16 - (hasBtn ? BTN_W : 0))))
     // Play / Stop for the lo-fi stream, at the right end of the strip
     const play = hasBtn ? (
-      <Box width={t.Svg ? BTN_W : undefined} justifyContent="center" alignItems="center" flexShrink={0}>
+      <Box justifyContent="center" alignItems="center" flexShrink={0}>
         <t.Button
           key="lofi"
           plain
-          label={playing ? T_STOP : T_PLAY}
           onPress={() => { void toggleLofi($) }}
         >
           <Text color={playing ? ACCENT : DIM}>{playing ? '\u25A0' : '\u25B6\uFE0E'}</Text>
