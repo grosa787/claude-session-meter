@@ -42,14 +42,16 @@ Hover the strip and a card opens above it with exact counts, cache‑write token
 
 ### Lo‑fi button
 
-At the right end of the strip there is a **▶** button. Press it and a small menu opens upwards with two live streams, each with its YouTube preview:
+At the right end of the strip there is a **▶** button. Press it and the Clodies step aside for a track picker – two live streams, each with its YouTube preview (the strip keeps its height):
 
 - **lofi hip hop radio** – [Lofi Girl](https://www.youtube.com/watch?v=rFZHOHl-L8A)
 - **Claude FM** – [Claude](https://youtu.be/tRsQsTMvPNg)
 
 Pick one and it plays in the background – sound only, no window, no video. The button turns into **■**; press it to stop. The music also stops when Claude Code closes.
 
-The music starts the moment you pick: while the menu is open, both streams are already loading, paused, and the pick just unpauses one. The streams' addresses and previews are looked up in the background when a session starts.
+**The Clodies dance while it plays.** Whenever they are standing – or as soon as they come to rest after Claude has worked – they dance to one beat: bobbing, pumping their arms, stepping from foot to foot, each with a move of its own (a sway, a side step, a squash); the footballer juggles his ball and music notes rise over a few of them. The music also keeps them from dozing off when the cache goes cold.
+
+The music starts the moment you pick: while the picker is open, both streams are already loading, paused, and the pick just unpauses one. The streams' addresses and previews are looked up in the background when a session starts.
 
 It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/yt-dlp); if they are missing, the button tells you to install them:
 

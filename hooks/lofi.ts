@@ -248,17 +248,17 @@ export async function resetLofi($: any) {
 }
 
 // The thumbnail with a LIVE badge, as an SVG (a dark placeholder until it loads).
-export const thumbSvg = (data: string | undefined) => {
-  const W = 64
-  const H = 36
+export const thumbSvg = (data: string | undefined, W = 64, H = 36) => {
+  const k = H / 36 // the badge scales with the picture
+  const R = Math.round(5 * k)
   const img = data
     ? `<image href="${data}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice" clip-path="url(#tc)"/>`
-    : `<rect width="${W}" height="${H}" rx="5" fill="#3d3d3a"/>`
+    : `<rect width="${W}" height="${H}" rx="${R}" fill="#3d3d3a"/>`
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-<clipPath id="tc"><rect width="${W}" height="${H}" rx="5"/></clipPath>
+<clipPath id="tc"><rect width="${W}" height="${H}" rx="${R}"/></clipPath>
 ${img}
-<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="4.5" fill="none" stroke="#ffffff" stroke-opacity="0.12"/>
-<rect x="3" y="${H - 11}" width="21" height="8" rx="2" fill="#e5534b"/>
-<text x="13.5" y="${H - 4.8}" font-size="6" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif">LIVE</text>
+<rect x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="${R - 0.5}" fill="none" stroke="#ffffff" stroke-opacity="0.12"/>
+<rect x="${(3 * k).toFixed(1)}" y="${(H - 11 * k).toFixed(1)}" width="${(21 * k).toFixed(1)}" height="${(8 * k).toFixed(1)}" rx="${(2 * k).toFixed(1)}" fill="#e5534b"/>
+<text x="${(13.5 * k).toFixed(1)}" y="${(H - 4.8 * k).toFixed(1)}" font-size="${(6 * k).toFixed(1)}" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif">LIVE</text>
 </svg>`
 }

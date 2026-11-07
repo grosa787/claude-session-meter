@@ -335,6 +335,7 @@ type Fx = {
   umbrella: boolean
   intent: string
   outfit: string
+  dance?: boolean // music is playing: once standing, they dance to the beat
 }
 
 const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: number, effort: string, ultra: boolean, settle: Settle | null = null, bored: number | null = null, fx: Fx | null = null) => {
@@ -366,7 +367,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
   // the row (left to right) and, once a minute, shimmer in turn. The animations
   // carry their own start times, so no redraw is needed when the mark is reached.
   const BORED_AFTER = 300
-  const waveOn = bored !== null && !run && !sleep
+  const waveOn = bored !== null && !run && !sleep && !fx?.dance
   const xsAll = Array.from({ length: COUNT }, (_, k) =>
     ((((bases ? bases[k] : initPhase(k, width)) + elapsed) % T + T) % T) * SPEED)
   const rankOf = (k: number) => xsAll.filter(v => v < xsAll[k]).length
@@ -376,6 +377,19 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     const c = i === 5 ? (LEVEL_BODY[effort] ?? COLORS[5]) : COLORS[i]
     const ph = i * 0.31
     const p0 = ((((bases ? bases[i] : initPhase(i, width)) + elapsed) % T) + T) % T
+
+    // Dancing (music on, standing): everyone on one beat. A Clodie still walking to
+    // its place starts once it is there, on the next bar, so they all stay in step.
+    const dance = !!fx?.dance && !run && !sleep
+    const BEAT = 0.68 // about 88 bpm, a lo-fi tempo
+    let dDelay = 0
+    if (dance && settle) {
+      const D = ((((settle.h[i] ?? 0) - (settle.s[i] ?? 0)) % L) + L) % L
+      if (D > 1) dDelay = Math.max(0, (3 * D) / SPEED - settle.age)
+    }
+    const dBegin = -Math.ceil(dDelay / (2 * BEAT) - 1e-6) * 2 * BEAT // tf negates it: a delay
+    const dtf = (type: string, vals: string, beats: number, kt = '', ease: string | string[] = IO) =>
+      tf(type, vals, beats * BEAT, dBegin, kt, ease)
 
     // The sixth Clodie shows the reasoning level (low .. max) and ultracode.
     const star = i === 5
@@ -416,6 +430,10 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
       if (goalFx && i === 6) a = once('translate', '0 -5;0 -2;0 -5', 0.35, goalFx.age, 8)
       else if (mood && mood.kind !== 'sad') a = once('translate', '0 -5;0 -2;0 -5', 0.3, mood.age, 9)
       else if (mood) a = once('translate', '0 1;0 2;0 1', 0.6, mood.age, 5)
+      else if (dance)
+        a = i % 2 === 0
+          ? dtf('translate', side ? '0 -5;0 -1;0 -5' : '0 -1;0 -5;0 -1', 2) // left, right, left ...
+          : dtf('translate', '0 -5;0 -2;0 -5', 1) // both hands up, on the beat
       else if (run) a = tf('translate', '0 0;0 -4;0 0', 0.4, ph + side * 0.2)
       else if (!sleep) {
         a =
@@ -432,13 +450,15 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
     // kicks out and back while standing (the right leg swings with the kick).
     const ball = i === 6
     const KICK = 4.8
-    const kickLeg = ball && !run && !sleep
+    const kickLeg = ball && !run && !sleep && !dance
     const leg = (col: number, alt: boolean) =>
       wrap(
         `${paint(col, 6, 1, 2)}${ball ? r(col, 6, 1, 1, '#f4f4f5') : ''}`, // the footballer's socks
         run
           ? tf('translate', alt ? '0 -2;0 0;0 -2' : '0 0;0 -2;0 0', 0.4, ph)
-          : kickLeg && col === 9
+          : dance
+            ? dtf('translate', alt ? '0 -2;0 0;0 -2' : '0 0;0 -2;0 0', 2) // stepping from foot to foot
+            : kickLeg && col === 9
             ? tf('translate', '0 0;0 0;-3 0;4 -2;0 0;0 0', KICK, ph, '0;0.5;0.56;0.6;0.66;1')
             : '',
       )
@@ -463,7 +483,7 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
       `${r(3, 3, 1, 1, '#fda4af')}${r(9, 3, 1, 1, '#fda4af')}`, // cheeks
     ]
     const heart =
-      i === 4 && mode === 'idle'
+      i === 4 && mode === 'idle' && !dance
         ? `<g>${r(5, -3, 1, 1, PINK)}${r(7, -3, 1, 1, PINK)}${r(5, -2, 3, 1, PINK)}${r(6, -1, 1, 1, PINK)}${tf('translate', '0 3;0 -5', 3.2, ph)}<animate attributeName="opacity" values="0;1;0" keyTimes="0;0.25;1" dur="3.2s" begin="${-ph}s" repeatCount="indefinite"/></g>`
         : ''
     const zz = sleep
@@ -522,12 +542,19 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
             )
             .join('')
         : ''
+    // music notes rising over some of the dancers
+    const note = (col: number, beats: number, off: number, f: string) =>
+      `<g opacity="0">${r(col + 1, -4, 1, 4, f)}${r(col - 1, -1, 2, 2, f)}${r(col + 2, -4, 2, 1, f)}` +
+      `<animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.6;1" dur="${(beats * BEAT).toFixed(3)}s" begin="${(-dBegin + off * BEAT).toFixed(3)}s" repeatCount="indefinite"/>` +
+      `<animateTransform attributeName="transform" type="translate" values="0 4;4 -2" dur="${(beats * BEAT).toFixed(3)}s" begin="${(-dBegin + off * BEAT).toFixed(3)}s" repeatCount="indefinite"/></g>`
+    const notes = dance && (i === 0 || i === 3 || i === 5) ? note(11, 4, i === 3 ? 2 : i === 5 ? 1 : 0, [PINK, BLUE, GREEN][i % 3]!) : ''
     const score = ball && (fx?.goals ?? 0) > 0 ? `<text x="${14}" y="${-17}" font-size="7" font-weight="700" fill="${DIM}" font-family="ui-monospace, monospace">×${fx!.goals}</text>` : ''
     const kit = ball ? `${r(2, 3, 9, 3, '#2563eb')}${r(6, 4, 1, 1, '#f4f4f5')}` : ''
     const ballSvg = (() => {
       if (!ball) return ''
       const body = `${r(12, 5, 3, 3, '#f4f4f5')}${r(13, 6, 1, 1, '#27272a')}`
       if (sleep) return `<g>${body}</g>`
+      if (dance && !goalFx) return wrap(body, dtf('translate', '0 0;0 -8;0 0', 1, '', ['0.2 0.6 0.4 1', '0.6 0 0.8 0.4'])) // keepy-uppy
       if (run) {
         const dribble = wrap(wrap(body, tf('translate', '0 0;0 -4;0 0', 0.4, ph)), tf('translate', '0 0;3 0;0 0', 0.8, ph))
         return dribble
@@ -545,12 +572,14 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
       const y = tf('translate', '0 0;0 0;0 -9;0 0;0 0', KICK, ph, '0;0.58;0.68;0.78;1', [LIN, '0.1 0.6 0.35 1', '0.65 0 0.9 0.4', LIN])
       return wrap(wrap(body, y), x)
     })()
-    let core = `${arm(0, 0)}${arm(11, 1)}${paint(2, 0, 9, 6)}${kit}${eyes}${headgear}${leg(3, false)}${leg(7, false)}${leg(5, true)}${leg(9, true)}${ballSvg}${heart}${zz}${lines}${special}${score}${moon}${mug}${magnifier}${hammer}${umbrella}${tear}${confetti}`
+    let core = `${arm(0, 0)}${arm(11, 1)}${paint(2, 0, 9, 6)}${kit}${eyes}${headgear}${leg(3, false)}${leg(7, false)}${leg(5, true)}${leg(9, true)}${ballSvg}${heart}${zz}${lines}${special}${score}${moon}${mug}${magnifier}${hammer}${umbrella}${tear}${confetti}${notes}`
 
     // layers, inside out: hop, squash, sway, turn-round
     const hop = run
       ? tf('translate', '0 0;0 -2;0 0', 0.4, ph)
-      : sleep
+      : dance
+        ? dtf('translate', '0 0;0 -3;0 0', 1) // a bob on every beat
+        : sleep
         ? tf('translate', '0 0;0 1;0 0', 2.8, ph)
         : i === 0
           ? tf('translate', '0 0;0 -5;0 0;0 -5;0 0;0 0', 3.2, ph, '0;0.14;0.28;0.42;0.56;1', [IO, IO, IO, IO, LIN]) // double jump
@@ -564,12 +593,21 @@ const clodLane = (mode: Mode, width: number, bases: number[] | null, elapsed: nu
           : wrap(core, once('translate', '0 0;0 -7;0 0', 0.55, mood.age - delay, 5))
     }
     if (waveOn) core = wrap(core, tf('translate', '0 0;0 -6;0 0;0 0', 4.4, -wb, '0;0.06;0.12;1', [IO, IO, LIN])) // the wave
-    if (!run && (i === 3 || sleep))
+    if (dance) {
+      // each its own move, all on the beat: sway, side step, or a squash
+      core =
+        i % 3 === 0
+          ? wrap(core, dtf('rotate', '-9 0 0;9 0 0;-9 0 0', 4))
+          : i % 3 === 1
+            ? wrap(core, dtf('translate', '-3 0;3 0;-3 0', 4))
+            : wrap(core, dtf('scale', '1 1;1.08 0.92;1 1', 1))
+    }
+    if (!run && !dance && (i === 3 || sleep))
       core = wrap(core, tf('scale', '1 1;1.1 0.9;1 1', sleep ? 2.8 : 2, ph)) // stretch / breathe
-    if (!run && !sleep && (i === 2 || i === 1))
+    if (!run && !sleep && !dance && (i === 2 || i === 1))
       core = wrap(core, tf('rotate', i === 2 ? '-8 0 0;8 0 0;-8 0 0' : '-3 0 0;3 0 0;-3 0 0', i === 2 ? 1.4 : 2.4, ph)) // sway
     if (run) core = `<g transform="rotate(5)">${core}</g>` // lean into the run
-    if (!run && !sleep && i === 4)
+    if (!run && !sleep && !dance && i === 4)
       core = wrap(core, tf('scale', '1 1;-1 1;-1 1;1 1;1 1', 6, ph, '0;0.1;0.5;0.6;1', [IO, LIN, IO, LIN])) // turns round, and back
 
     // All run to the right in a line. Whoever leaves on the right comes back in
@@ -944,7 +982,9 @@ export const register: Register = on => {
     const nowMs = await $.clock.now()
     const reveal = { scope: 'session-meter', display: 'flex' as const }
     const R0 = remaining(s, nowMs)
-    const mode: Mode = s.busy ? 'run' : R0 !== null && R0 <= 0 ? 'sleep' : 'idle'
+    const playingNow = (await read($, lofiTrack)) !== ''
+    // music keeps them awake (and dancing)
+    const mode: Mode = s.busy ? 'run' : !playingNow && R0 !== null && R0 <= 0 ? 'sleep' : 'idle'
     const cols = (e.props as { bodyColumns?: number }).bodyColumns ?? 120
     const playing = await read($, lofiTrack)
     const menuOpen = await read($, lofiMenu)
@@ -997,6 +1037,7 @@ export const register: Register = on => {
       umbrella: !!s.longTool,
       intent: s.intent ?? '',
       outfit: hour >= 22 || hour < 6 ? 'night' : weekday === 5 && hour >= 18 ? 'party' : hour >= 6 && hour < 10 ? 'morning' : '',
+      dance: playingNow,
     }
 
     if (t.Svg) {
@@ -1006,11 +1047,24 @@ export const register: Register = on => {
           <Box display="none" hover={reveal}>
             <Svg source={cardSvg(s, nowMs)} alt="Session statistics" />
           </Box>
-          {menu}
           <Box justifyContent="space-between" alignItems="center" width="100%">
-            <Box flexGrow={1} flexShrink={1} overflow="hidden">
-              <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored, fx)} alt="Clodies" />
-            </Box>
+            {menuOpen ? (
+              // the track picker takes the Clodies' place while open: the strip keeps its height
+              <Box flexGrow={1} flexShrink={1} overflow="hidden" justifyContent="flex-end" alignItems="center" gap={3}>
+                {TRACKS.map(tr => (
+                  <Box key={`lofi-row-${tr.id}`} alignItems="center" gap={1}>
+                    <Svg source={thumbSvg(thumbs[tr.vid], 48, 27)} alt={tr.name} />
+                    <t.Button key={`lofi-${tr.id}`} plain onPress={() => { void pickLofi($, tr.id) }}>
+                      {tr.name} <Text dimColor>{tr.by}</Text>
+                    </t.Button>
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <Box flexGrow={1} flexShrink={1} overflow="hidden">
+                <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored, fx)} alt="Clodies" />
+              </Box>
+            )}
             <Box key="meter" hover={{ scope: 'session-meter' }} flexShrink={0}>
               <Svg source={pill} alt={`Session cost $${s.usd.toFixed(2)}`} />
             </Box>
