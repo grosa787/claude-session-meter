@@ -1047,24 +1047,11 @@ export const register: Register = on => {
           <Box display="none" hover={reveal}>
             <Svg source={cardSvg(s, nowMs)} alt="Session statistics" />
           </Box>
+          {menu}
           <Box justifyContent="space-between" alignItems="center" width="100%">
-            {menuOpen ? (
-              // the track picker takes the Clodies' place while open: the strip keeps its height
-              <Box flexGrow={1} flexShrink={1} overflow="hidden" justifyContent="flex-end" alignItems="center" gap={3}>
-                {TRACKS.map(tr => (
-                  <Box key={`lofi-row-${tr.id}`} alignItems="center" gap={1}>
-                    <Svg source={thumbSvg(thumbs[tr.vid], 48, 27)} alt={tr.name} />
-                    <t.Button key={`lofi-${tr.id}`} plain onPress={() => { void pickLofi($, tr.id) }}>
-                      {tr.name} <Text dimColor>{tr.by}</Text>
-                    </t.Button>
-                  </Box>
-                ))}
-              </Box>
-            ) : (
-              <Box flexGrow={1} flexShrink={1} overflow="hidden">
-                <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored, fx)} alt="Clodies" />
-              </Box>
-            )}
+            <Box flexGrow={1} flexShrink={1} overflow="hidden">
+              <Svg source={clodLane(mode, trackW, bases, elapsed, s.effort, s.ultra, stopping, bored, fx)} alt="Clodies" />
+            </Box>
             <Box key="meter" hover={{ scope: 'session-meter' }} flexShrink={0}>
               <Svg source={pill} alt={`Session cost $${s.usd.toFixed(2)}`} />
             </Box>
