@@ -40,6 +40,16 @@ Hover the strip and a card opens above it with exact counts, cache‑write token
 <img src="docs/card.png" alt="The hover card" width="320">
 </div>
 
+### Lo‑fi button
+
+At the right end of the strip there is a **▶** button. Press it and a lo‑fi live stream ([this one](https://youtu.be/tRsQsTMvPNg)) starts playing in the background – sound only, no window, no video. The button turns into **■**; press it again to stop. The music also stops when Claude Code closes.
+
+It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/yt-dlp); if they are missing, the button tells you to install them:
+
+```
+brew install mpv yt-dlp
+```
+
 ### Clodies
 
 Seven pixel Clodies live on the left of the strip, in an evenly spaced row.
@@ -100,7 +110,8 @@ Every push to this repository is a new version. To get it, run `/plugin marketpl
 - **Reasoning level** is read from your settings and from each request. Max is not stored in settings, so it shows once `effortLevel` disappears from them or after the first request following the switch.
 - **Ultracode** is detected from the `ultracode` setting, or from the word `ultracode` in a prompt (for that turn). Claude Code does not expose the mode to mods in any other way.
 - The *find* / *fix* reactions also recognise a few Russian words (найди, поиск, почини, баг).
-- Token counters start from zero whenever the mod loads; the cost is read from the session itself.
+- Token counters are kept per session in the mod's store, so they survive a full restart of Claude; the cost is read from the session itself.
+- The lo‑fi button lives in each session's strip on its own: pressing it in two sessions plays the stream twice.
 
 ## How it works
 

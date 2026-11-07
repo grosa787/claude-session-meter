@@ -29,6 +29,6 @@ export type Stats = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'session-meter': { stats: Shaped<Stats> }
+    'session-meter': { stats: Shaped<Stats>; lofi: boolean }
   }
 }
