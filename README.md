@@ -57,6 +57,8 @@ At the right end of the strip there is a **▶** button. Press it and a menu ope
 
 Pick one and it plays in the background – sound only, no window, no video. The button turns into **■**; press it to stop. The music also stops when Claude Code closes.
 
+**The stream's picture plays beside the prompt.** A small borderless video window (224×126, no sound of its own) opens in the empty corner to the right of the prompt, level with it, and moves with the Claude window. It stays on top while Claude is the app in front and steps back when you switch to another app. Claude's own interface has no place a mod can play video in, so this is a window of mpv's own; `/meter video off` turns it off (`on` brings it back).
+
 **The Clodies dance while it plays.** Whenever they are standing – or as soon as they come to rest after Claude has worked – they dance to one beat: bobbing, pumping their arms, stepping from foot to foot, each with a move of its own (a sway, a side step, a squash); the footballer juggles his ball and music notes rise over a few of them. The music also keeps them from dozing off when the cache goes cold.
 
 The music starts the moment you pick: while the menu is open, the last stream you picked and the first two are already loading, paused, and the pick just unpauses one; the others start in two or three seconds. The previews load in the background as soon as a session starts (all at once, in about half a second), then the streams' addresses.
@@ -122,6 +124,7 @@ Every push to this repository is a new version. To get it, run `/plugin marketpl
 | `/meter` | Opens the stats card in a pane |
 | `/meter 1h` / `/meter 5m` | Sets the cache lifetime used for the countdown |
 | `/meter reset` | Resets the token counters |
+| `/meter video on` / `/meter video off` | Shows or hides the stream's picture beside the prompt (on by default) |
 | `/meter volume 40` | Sets the lo‑fi volume, 0–100 (60 by default); applies at once and is remembered. `/meter volume` alone shows it |
 
 ## Good to know

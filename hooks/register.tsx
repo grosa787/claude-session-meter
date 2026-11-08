@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Stats } from '../types'
-import { LOFI_MSG, TRACKS, getVolume, pickLofi, prefetchLofi, pressLofi, resetLofi, setVolume, thumbSvg } from './lofi'
+import { LOFI_MSG, TRACKS, getVolume, pickLofi, prefetchLofi, pressLofi, resetLofi, setVideo, setVolume, thumbSvg, videoOn } from './lofi'
 
 const PANE = 'session-meter'
 const empty: Stats = {
@@ -712,7 +712,7 @@ export const register: Register = on => {
     void prefetchLofi($)
     await $.command.register({
       name: 'meter',
-      description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset | volume 0-100',
+      description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset | volume 0-100 | video on|off',
     })
     // A resumed session starts with empty counters: read them back from the store.
     const saved = await loadTotals($)
@@ -837,6 +837,13 @@ export const register: Register = on => {
     if (vm) {
       const v = vm[1] !== undefined ? await setVolume($, Number(vm[1])) : await getVolume($)
       return { text: `${LOFI_MSG.vol}: ${v}` }
+    }
+    // /meter video on|off: the stream's picture beside the prompt
+    const vd = arg.match(/^video\s*(on|off)?$/i)
+    if (vd) {
+      if (vd[1]) await setVideo($, vd[1].toLowerCase() === 'on')
+      const shown = await videoOn($)
+      return { text: `Lo-fi video: ${shown ? 'on' : 'off'}` }
     }
     if (arg === '1h' || arg === '5m') {
       await update($, stats, s => ({ ...s, ttl: arg }))

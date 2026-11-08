@@ -30,6 +30,7 @@ const WARM_MAX = 3
 const LAST = 'lofiLast' // store: the id of the last pick
 const VOL = 'lofiVol' // store: the volume, 0..100 (mpv's scale is cubic: 60 is about -13 dB)
 export const DEFAULT_VOL = 60
+const VIDEO = 'lofiVideo' // store: show the stream's picture (true unless turned off)
 const watchUrl = (t: Track) => `https://www.youtube.com/watch?v=${t.vid}`
 
 // what plays now ('' for nothing), whether the menu is open, the thumbnails (data URIs);
@@ -121,9 +122,9 @@ export async function prefetchThumbs($: any) {
   } catch {}
 }
 
-async function lookUp($: any, ytdl: string, t: Track) {
+async function lookUp($: any, ytdl: string, t: Track, format = 'bestaudio/best') {
   try {
-    const r = await $.process.run([ytdl, '-f', 'bestaudio/best', '-g', watchUrl(t)], { env: { PATH }, timeoutMs: 40_000 })
+    const r = await $.process.run([ytdl, '-f', format, '-g', watchUrl(t)], { env: { PATH }, timeoutMs: 40_000 })
     const url = String(r.stdout).trim().split('\n')[0] ?? ''
     const exp = Number(url.match(/expire\/(\d+)/)?.[1] ?? 0)
     if (r.exitCode === 0 && url && exp) return { url, exp }
@@ -135,14 +136,17 @@ async function prefetchUrls($: any) {
   const ytdl = await find($, 'yt-dlp')
   if (!ytdl) return
   const nowMs = await $.clock.now()
-  const todo: Track[] = []
-  for (const t of TRACKS) if (!(await cachedUrl($, t.vid, nowMs))) todo.push(t)
-  for (let k = 0; k < todo.length; k += 4) {
-    const batch = todo.slice(k, k + 4)
-    const got = await Promise.all(batch.map(t => lookUp($, ytdl, t)))
+  // the sound of every stream first, then (when the picture is on) its 360p video
+  const jobs: { key: string; t: Track; format: string }[] = []
+  for (const t of TRACKS) if (!(await cachedUrl($, t.vid, nowMs))) jobs.push({ key: t.vid, t, format: 'bestaudio/best' })
+  if (await videoOn($))
+    for (const t of TRACKS) if (!(await cachedUrl($, `${t.vid}:v`, nowMs))) jobs.push({ key: `${t.vid}:v`, t, format: 'bv*[height<=360]/b[height<=360]' })
+  for (let k = 0; k < jobs.length; k += 4) {
+    const batch = jobs.slice(k, k + 4)
+    const got = await Promise.all(batch.map(j => lookUp($, ytdl, j.t, j.format)))
     try {
       const all = ((await $.store.get(URLS)) ?? {}) as Record<string, unknown>
-      batch.forEach((t, j) => { if (got[j]) all[t.vid] = got[j] })
+      batch.forEach((j, i) => { if (got[i]) all[j.key] = got[i] })
       await $.store.set(URLS, all)
     } catch {}
   }
@@ -187,6 +191,10 @@ async function watch($: any, p: Proc) {
   } catch {}
   // the control socket mpv may leave behind
   try { await $.process.run(['/bin/rm', '-f', p.sock], { timeoutMs: 5000 }) } catch {}
+  if (video === p) {
+    video = null
+    return
+  }
   if (warm[p.vid] === p) {
     delete warm[p.vid]
     if (p.cached) await forgetUrl($, p.vid)
@@ -204,6 +212,7 @@ async function watch($: any, p: Proc) {
       }
     }
     await update($, lofiTrack, () => '')
+    await stopVideo()
     await $.ui.toast(LOFI_MSG.fail)
   }
 }
@@ -258,11 +267,144 @@ async function coolDown() {
   }
 }
 
+// ---- The picture: a small borderless window of the stream's video (no sound;
+// the sound player above keeps playing on its own), glued to the bottom-right
+// corner of the Claude window, beside the prompt. Claude's interface has no
+// place a mod can play video in, so it is a window of mpv's own, on top while
+// Claude is the app in front. mpv cannot move a window it has opened, so when
+// the Claude window moves or is resized the picture reopens at the new place.
+const VW = 224 // the picture, in points (fits between the prompt and the scrollbar)
+const VH = 126
+const VRIGHT = 20 // from the window's right edge (past the scrollbar)
+const VBOTTOM = 42 // from its bottom edge: level with the bottom of the prompt
+let video: Proc | null = null
+let videoAt = '' // the Claude window's bounds the picture was placed for
+
+// The Claude window (the largest on screen) in its screen's pixels, its
+// screen's index and scale, and the app in front.
+const WIN_JS = `ObjC.import('CoreGraphics'); ObjC.import('AppKit')
+const list = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly | $.kCGWindowListExcludeDesktopElements, 0))) || []
+const front = ObjC.unwrap($.NSWorkspace.sharedWorkspace.frontmostApplication.localizedName)
+let best = null
+for (const w of list) { if (w.kCGWindowOwnerName !== 'Claude' || w.kCGWindowLayer !== 0) continue; const b = w.kCGWindowBounds; if (!best || b.Width * b.Height > best.Width * best.Height) best = b }
+const out = { front, win: null }
+if (best) {
+  const ss = $.NSScreen.screens; const mainH = ss.objectAtIndex(0).frame.size.height
+  for (let k = 0; k < ss.count; k++) {
+    const sc = ss.objectAtIndex(k); const f = sc.frame; const top = mainH - (f.origin.y + f.size.height)
+    const cx = best.X + best.Width / 2, cy = best.Y + best.Height / 2
+    if (cx >= f.origin.x && cx < f.origin.x + f.size.width && cy >= top && cy < top + f.size.height) {
+      out.win = { x: best.X - f.origin.x, y: best.Y - top, w: best.Width, h: best.Height, screen: k, scale: sc.backingScaleFactor }
+      break
+    }
+  }
+}
+JSON.stringify(out)`
+
+async function claudeWindow($: any): Promise<{ front: string; win: { x: number; y: number; w: number; h: number; screen: number; scale: number } | null } | null> {
+  try {
+    const r = await $.process.run(['/usr/bin/osascript', '-l', 'JavaScript', '-e', WIN_JS], { timeoutMs: 5000 })
+    return r.exitCode === 0 ? JSON.parse(String(r.stdout).trim()) : null
+  } catch {
+    return null
+  }
+}
+
+export async function videoOn($: any) {
+  try { return (await $.store.get(VIDEO)) !== false } catch { return true }
+}
+
+export async function setVideo($: any, on: boolean) {
+  try { await $.store.set(VIDEO, on) } catch {}
+  const t = TRACKS.find(x => x.vid === player?.vid)
+  if (!on) await stopVideo()
+  else if (t && !video) void startVideo($, t)
+}
+
+async function stopVideo() {
+  const v = video
+  video = null
+  videoAt = ''
+  await kill(v)
+}
+
+async function openVideo($: any, t: Track) {
+  const at = await claudeWindow($)
+  const w = at?.win
+  if (!w) return null
+  const mpv = await find($, 'mpv')
+  const ytdl = await find($, 'yt-dlp')
+  if (!mpv || !ytdl) return null
+  const nowMs = await $.clock.now()
+  const direct = await cachedUrl($, `${t.vid}:v`, nowMs)
+  const px = (v: number) => Math.round(v * w.scale)
+  const x = w.x + w.w - VW - VRIGHT
+  const y = w.y + w.h - VH - VBOTTOM
+  const sock = `/tmp/session-meter-lofi-video-${t.vid}-${nowMs}.sock`
+  const argv = [
+    mpv, '--no-config', '--no-audio', '--no-terminal', '--idle=no',
+    '--border=no', `--ontop=${at.front === 'Claude' ? 'yes' : 'no'}`, '--title=lo-fi',
+    `--screen=${w.screen}`, '--macos-geometry-calculation=whole', '--force-window-position',
+    `--geometry=${px(VW)}x${px(VH)}+${px(x)}+${px(y)}`,
+    '--osc=no', '--osd-level=0', '--input-default-bindings=no', '--cursor-autohide=always',
+    '--macos-app-activation-policy=accessory',
+    '--cache=yes', '--demuxer-max-bytes=32MiB', '--demuxer-readahead-secs=20',
+    '--demuxer-lavf-o=live_start_index=-4,http_persistent=0',
+    '--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=4',
+    `--input-ipc-server=${sock}`,
+    ...(direct
+      ? ['--ytdl=no', direct]
+      : ['--ytdl-format=bv*[height<=360]/b[height<=360]', `--script-opts=ytdl_hook-ytdl_path=${ytdl}`, watchUrl(t)]),
+  ]
+  const p: Proc = { stream: $.process.spawn({ argv, env: { PATH } }), sock, vid: t.vid, cached: !!direct, t0: nowMs }
+  void watch($, p)
+  videoAt = `${w.x},${w.y},${w.w},${w.h},${w.screen}`
+  return p
+}
+
+// Opens the picture and keeps it in place: on top while Claude is in front
+// (or the picture itself was clicked), reopened when the Claude window moves.
+async function startVideo($: any, t: Track) {
+  await stopVideo()
+  const p = await openVideo($, t)
+  if (!p) return
+  video = p
+  let onTop: boolean | null = null
+  let moved = ''
+  while (video && player && video.vid === t.vid) {
+    await $.clock.sleep({ ms: 1500 })
+    if (!video || !player) break
+    const at = await claudeWindow($)
+    if (!at) continue
+    const top = at.front === 'Claude' || at.front === 'mpv'
+    if (top !== onTop && video) {
+      onTop = top
+      await send($, video, ['set_property', 'ontop', top])
+    }
+    const w = at.win
+    const now = w ? `${w.x},${w.y},${w.w},${w.h},${w.screen}` : ''
+    if (now && now !== videoAt) {
+      // wait until it stops moving (the same new place twice), then reopen there
+      if (now === moved && video) {
+        const old = video
+        video = null
+        await kill(old)
+        const again = await openVideo($, t)
+        if (!again) return
+        video = again
+        onTop = null
+        moved = ''
+      } else moved = now
+    }
+  }
+}
+
 export async function stopLofi($: any) {
   const p = player
   player = null
   await update($, lofiTrack, () => '')
   await kill(p)
+  await stopVideo()
 }
 
 // The strip's button: Stop while playing; otherwise opens the menu (and warms
@@ -317,6 +459,7 @@ export async function pickLofi($: any, id: string) {
   player = p
   await update($, lofiTrack, () => t.id)
   try { await $.store.set(LAST, t.id) } catch {}
+  if (await videoOn($)) void startVideo($, t)
 }
 
 // A reload killed whatever the module had running: start from Play, menu closed.
