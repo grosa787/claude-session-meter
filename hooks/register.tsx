@@ -1007,13 +1007,20 @@ export const register: Register = on => {
     ) : null
     // the track menu, opened upwards above the button: thumbnail, name, channel
     const menu = hasBtn && menuOpen ? (
-      <Box flexDirection="column" borderStyle="round" borderColor={LINE} paddingX={1} paddingY={1} gap={1}>
-        {TRACKS.map(tr => (
-          <Box key={`lofi-row-${tr.id}`} alignItems="center" gap={1}>
-            {t.Svg ? <t.Svg source={thumbSvg(thumbs[tr.vid])} alt={tr.name} /> : null}
-            <t.Button key={`lofi-${tr.id}`} plain onPress={() => { void pickLofi($, tr.id) }}>
-              {tr.name} <Text dimColor>{tr.by}</Text>
-            </t.Button>
+      <Box borderStyle="round" borderColor={LINE} paddingX={1} paddingY={1} gap={2}>
+        {Array.from({ length: Math.ceil(TRACKS.length / 2) }, (_, c) => (
+          <Box key={`lofi-col-${c}`} flexDirection="column" gap={1}>
+            {TRACKS.slice(c * 2, c * 2 + 2).map(tr => (
+              <Box key={`lofi-row-${tr.id}`} alignItems="center" gap={1}>
+                {t.Svg ? <t.Svg source={thumbSvg(thumbs[tr.vid], 56, 32)} alt={tr.name} /> : null}
+                <Box flexDirection="column">
+                  <t.Button key={`lofi-${tr.id}`} plain onPress={() => { void pickLofi($, tr.id) }}>
+                    <Text color={playing === tr.id ? ACCENT : undefined}>{tr.name}</Text>
+                  </t.Button>
+                  <Text dimColor>{tr.by}</Text>
+                </Box>
+              </Box>
+            ))}
           </Box>
         ))}
       </Box>

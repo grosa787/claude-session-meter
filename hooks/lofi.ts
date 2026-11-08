@@ -11,10 +11,23 @@
 import { atom, read, update } from 'claude-code'
 
 export type Track = { id: string; name: string; by: string; vid: string }
+// Long-running 24/7 streams. The menu shows them in columns of two, left to
+// right, so the last column (next to the button) holds the first two picks.
 export const TRACKS: Track[] = [
+  { id: 'chillhop', name: 'lofi hip hop radio', by: 'Chillhop Music', vid: '7NOSDKb0HlU' },
+  { id: 'chillhopradio', name: 'Chillhop Radio', by: 'Chillhop Music', vid: '5yx6BWlEVcY' },
+  { id: 'bootleg', name: 'sad & sleepy beats', by: 'the bootleg boy', vid: 'FWjZ0x2M8og' },
+  { id: 'jazz', name: 'jazz lofi radio', by: 'Lofi Girl', vid: 'E2vONfzoyRI' },
+  { id: 'synthwave', name: 'synthwave radio', by: 'Lofi Girl', vid: '4xDzrJKXOOY' },
+  { id: 'sleep', name: 'sleep/chill radio', by: 'Lofi Girl', vid: 'JD-kMIpDfnY' },
   { id: 'lofigirl', name: 'lofi hip hop radio', by: 'Lofi Girl', vid: 'rFZHOHl-L8A' },
   { id: 'claude', name: 'Claude FM', by: 'Claude', vid: 'tRsQsTMvPNg' },
 ]
+// warmed up when the menu opens (all of them would be eight streams loading at
+// once): the last pick, then these; the rest start in two or three seconds
+const WARM_FIRST = ['lofigirl', 'claude']
+const WARM_MAX = 3
+const LAST = 'lofiLast' // store: the id of the last pick
 const watchUrl = (t: Track) => `https://www.youtube.com/watch?v=${t.vid}`
 
 // what plays now ('' for nothing), whether the menu is open, the thumbnails (data URIs);
@@ -208,8 +221,12 @@ export async function openMenu($: any) {
     return
   }
   await update($, lofiMenu, () => true)
-  for (const t of TRACKS) {
-    if (warm[t.vid]) continue
+  let last = ''
+  try { last = String((await $.store.get(LAST)) ?? '') } catch {}
+  const ids = [...new Set([last, ...WARM_FIRST].filter(Boolean))].slice(0, WARM_MAX)
+  for (const id of ids) {
+    const t = TRACKS.find(x => x.id === id)
+    if (!t || warm[t.vid]) continue
     const p = await spawn($, t, true)
     if (p) warm[t.vid] = p
   }
@@ -239,6 +256,7 @@ export async function pickLofi($: any, id: string) {
   }
   player = p
   await update($, lofiTrack, () => t.id)
+  try { await $.store.set(LAST, t.id) } catch {}
 }
 
 // A reload killed whatever the module had running: start from Play, menu closed.
