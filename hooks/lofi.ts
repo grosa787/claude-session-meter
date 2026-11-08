@@ -75,50 +75,75 @@ async function forgetUrl($: any, vid: string) {
   } catch {}
 }
 
-// Looks up the streams' direct addresses and the thumbnails that are missing or
-// old. Run in the background at the session's start; quiet when offline.
+// Fetches the thumbnails that are missing or a day old, all at once; each one
+// shows as soon as it is in. Then looks up the streams' direct addresses (a few
+// at a time; about 3 s each). Run in the background at the session's start;
+// quiet when offline.
 export async function prefetchLofi($: any) {
-  const ytdl = await find($, 'yt-dlp')
-  const nowMs = await $.clock.now()
-  if (ytdl) {
-    for (const t of TRACKS) {
-      if (await cachedUrl($, t.vid, nowMs)) continue
-      try {
-        const r = await $.process.run([ytdl, '-f', 'bestaudio/best', '-g', watchUrl(t)], { env: { PATH }, timeoutMs: 40_000 })
-        const url = String(r.stdout).trim().split('\n')[0] ?? ''
-        const exp = Number(url.match(/expire\/(\d+)/)?.[1] ?? 0)
-        if (r.exitCode === 0 && url && exp) {
-          const all = ((await $.store.get(URLS)) ?? {}) as Record<string, unknown>
-          all[t.vid] = { url, exp }
-          await $.store.set(URLS, all)
-        }
-      } catch {}
+  await prefetchThumbs($)
+  await prefetchUrls($)
+}
+
+// One thumbnail as a small JPEG (160x90) in a data URI, or '' when it cannot be had.
+async function fetchThumb($: any, t: Track) {
+  try {
+    const sh = `f=$(mktemp -t smthumb).jpg; curl -sfL -m 10 -o "$f" "https://i.ytimg.com/vi/${t.vid}/mqdefault.jpg" && sips -Z 160 -s formatOptions 75 "$f" >/dev/null 2>&1; base64 < "$f"; rm -f "$f"`
+    const r = await $.process.run(['/bin/sh', '-c', sh], { env: { PATH }, timeoutMs: 20_000 })
+    const b64 = String(r.stdout).replace(/\s+/g, '')
+    if (r.exitCode === 0 && b64.length > 500) {
+      const data = `data:image/jpeg;base64,${b64}`
+      await update($, lofiThumbs, (m: Record<string, string>) => ({ ...m, [t.vid]: data }))
+      return data
     }
-  }
+  } catch {}
+  return ''
+}
+
+export async function prefetchThumbs($: any) {
+  const nowMs = await $.clock.now()
   let stored: Record<string, { data: string; at: number }> = {}
   try {
     stored = ((await $.store.get(THUMBS)) ?? {}) as typeof stored
   } catch {}
-  let changed = false
-  for (const t of TRACKS) {
-    if (stored[t.vid] && nowMs - stored[t.vid]!.at < DAY) continue
+  // what the store already has shows at once
+  const have: Record<string, string> = {}
+  for (const t of TRACKS) if (stored[t.vid]) have[t.vid] = stored[t.vid]!.data
+  await update($, lofiThumbs, (m: Record<string, string>) => ({ ...have, ...m }))
+  const todo = TRACKS.filter(t => !stored[t.vid] || nowMs - stored[t.vid]!.at >= DAY)
+  if (todo.length === 0) return
+  const got = await Promise.all(todo.map(t => fetchThumb($, t)))
+  try {
+    const all = ((await $.store.get(THUMBS)) ?? {}) as typeof stored
+    todo.forEach((t, k) => { if (got[k]) all[t.vid] = { data: got[k]!, at: nowMs } })
+    await $.store.set(THUMBS, all)
+  } catch {}
+}
+
+async function lookUp($: any, ytdl: string, t: Track) {
+  try {
+    const r = await $.process.run([ytdl, '-f', 'bestaudio/best', '-g', watchUrl(t)], { env: { PATH }, timeoutMs: 40_000 })
+    const url = String(r.stdout).trim().split('\n')[0] ?? ''
+    const exp = Number(url.match(/expire\/(\d+)/)?.[1] ?? 0)
+    if (r.exitCode === 0 && url && exp) return { url, exp }
+  } catch {}
+  return null
+}
+
+async function prefetchUrls($: any) {
+  const ytdl = await find($, 'yt-dlp')
+  if (!ytdl) return
+  const nowMs = await $.clock.now()
+  const todo: Track[] = []
+  for (const t of TRACKS) if (!(await cachedUrl($, t.vid, nowMs))) todo.push(t)
+  for (let k = 0; k < todo.length; k += 4) {
+    const batch = todo.slice(k, k + 4)
+    const got = await Promise.all(batch.map(t => lookUp($, ytdl, t)))
     try {
-      // a small JPEG (160x90), as base64
-      const sh = `f=$(mktemp -t smthumb).jpg; curl -sfL -m 15 -o "$f" "https://i.ytimg.com/vi/${t.vid}/mqdefault.jpg" && sips -Z 160 -s formatOptions 75 "$f" >/dev/null 2>&1; base64 < "$f"; rm -f "$f"`
-      const r = await $.process.run(['/bin/sh', '-c', sh], { env: { PATH }, timeoutMs: 30_000 })
-      const b64 = String(r.stdout).replace(/\s+/g, '')
-      if (r.exitCode === 0 && b64.length > 500) {
-        stored[t.vid] = { data: `data:image/jpeg;base64,${b64}`, at: nowMs }
-        changed = true
-      }
+      const all = ((await $.store.get(URLS)) ?? {}) as Record<string, unknown>
+      batch.forEach((t, j) => { if (got[j]) all[t.vid] = got[j] })
+      await $.store.set(URLS, all)
     } catch {}
   }
-  if (changed) {
-    try { await $.store.set(THUMBS, stored) } catch {}
-  }
-  const thumbs: Record<string, string> = {}
-  for (const t of TRACKS) if (stored[t.vid]) thumbs[t.vid] = stored[t.vid]!.data
-  await update($, lofiThumbs, () => thumbs)
 }
 
 // Starts mpv for a track, paused (warm) or playing.
@@ -221,6 +246,9 @@ export async function openMenu($: any) {
     return
   }
   await update($, lofiMenu, () => true)
+  // thumbnails still missing (the session has just started): fetch them now
+  const shown = (await read($, lofiThumbs)) as Record<string, string>
+  if (TRACKS.some(t => !shown[t.vid])) void prefetchThumbs($)
   let last = ''
   try { last = String((await $.store.get(LAST)) ?? '') } catch {}
   const ids = [...new Set([last, ...WARM_FIRST].filter(Boolean))].slice(0, WARM_MAX)

@@ -59,7 +59,7 @@ Pick one and it plays in the background – sound only, no window, no video. The
 
 **The Clodies dance while it plays.** Whenever they are standing – or as soon as they come to rest after Claude has worked – they dance to one beat: bobbing, pumping their arms, stepping from foot to foot, each with a move of its own (a sway, a side step, a squash); the footballer juggles his ball and music notes rise over a few of them. The music also keeps them from dozing off when the cache goes cold.
 
-The music starts the moment you pick: while the menu is open, the last stream you picked and the first two are already loading, paused, and the pick just unpauses one; the others start in two or three seconds. The streams' addresses and previews are looked up in the background when a session starts.
+The music starts the moment you pick: while the menu is open, the last stream you picked and the first two are already loading, paused, and the pick just unpauses one; the others start in two or three seconds. The previews load in the background as soon as a session starts (all at once, in about half a second), then the streams' addresses.
 
 It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/yt-dlp); if they are missing, the button tells you to install them:
 

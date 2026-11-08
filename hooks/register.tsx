@@ -1007,7 +1007,7 @@ export const register: Register = on => {
     ) : null
     // the track menu, opened upwards above the button: thumbnail, name, channel
     const menu = hasBtn && menuOpen ? (
-      <Box borderStyle="round" borderColor={LINE} paddingX={1} paddingY={1} gap={2}>
+      <Box borderStyle="round" borderColor={LINE} paddingX={2} paddingY={1} gap={2} width="100%" justifyContent="space-between">
         {Array.from({ length: Math.ceil(TRACKS.length / 2) }, (_, c) => (
           <Box key={`lofi-col-${c}`} flexDirection="column" gap={1}>
             {TRACKS.slice(c * 2, c * 2 + 2).map(tr => (
