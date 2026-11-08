@@ -57,7 +57,7 @@ At the right end of the strip there is a **▶** button. Press it and a menu ope
 
 Pick one and it plays in the background – sound only, no window, no video. The button turns into **■**; press it to stop. The music also stops when Claude Code closes.
 
-**The stream's picture plays beside the prompt.** A small borderless video window (224×126, no sound of its own) opens in the empty corner to the right of the prompt, level with it, and moves with the Claude window. It stays on top while Claude is the app in front and steps back when you switch to another app. Claude's own interface has no place a mod can play video in, so this is a window of mpv's own; `/meter video off` turns it off (`on` brings it back).
+**The stream's picture plays beside the prompt.** A small borderless video window (224×126, no sound of its own) opens in the empty corner to the right of the prompt, level with it, and moves with the Claude window. It stays on top while Claude is the app in front and steps back when you switch to another app. Claude's own interface has no place a mod can play video in, so this is a window of mpv's own; `/meter video off` turns it off (`on` brings it back). Hover the picture and a **−** appears at its top right: click it to hide the picture for this track while the music plays on.
 
 **The Clodies dance while it plays.** Whenever they are standing – or as soon as they come to rest after Claude has worked – they dance to one beat: bobbing, pumping their arms, stepping from foot to foot, each with a move of its own (a sway, a side step, a squash); the footballer juggles his ball and music notes rise over a few of them. The music also keeps them from dozing off when the cache goes cold.
 

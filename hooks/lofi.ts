@@ -301,6 +301,45 @@ if (best) {
 }
 JSON.stringify(out)`
 
+// The picture's own "hide" button, as an mpv script: a minus at the top right,
+// shown while the pointer is over the picture; a click on it closes the picture
+// (the sound plays on). `sm-hit x y` presses it from outside (for a test).
+const HIDE_LUA = String.raw`local ov = mp.create_osd_overlay("ass-events")
+local box = nil
+local shown = false
+local function draw(on)
+  local w, h = mp.get_osd_size()
+  if not w or w == 0 then return end
+  if not on then
+    if shown then ov:remove() end
+    shown = false
+    return
+  end
+  local s = math.floor(h * 0.17)
+  local m = math.floor(h * 0.05)
+  box = { x = w - m - s, y = m, s = s }
+  local bar = math.max(2, math.floor(s * 0.1))
+  ov.res_x, ov.res_y = w, h
+  ov.data = string.format("{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H1A1A1A&\\1a&H38&\\p1}m 0 0 l %d 0 %d %d 0 %d{\\p0}", box.x, box.y, s, s, s, s)
+    .. "\n" .. string.format("{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HF5F5F5&\\p1}m 0 0 l %d 0 %d %d 0 %d{\\p0}", box.x + math.floor(s * 0.25), box.y + math.floor((s - bar) / 2), math.floor(s * 0.5), math.floor(s * 0.5), bar, bar)
+  ov:update()
+  shown = true
+end
+local function hit(x, y)
+  if box and x and y and x >= box.x and x <= box.x + box.s and y >= box.y and y <= box.y + box.s then
+    mp.command("quit")
+  end
+end
+mp.observe_property("mouse-pos", "native", function(_, p) draw(p ~= nil and p.hover == true) end)
+mp.add_forced_key_binding("MBTN_LEFT", "sm-hide", function()
+  local p = mp.get_property_native("mouse-pos")
+  if p then hit(p.x, p.y) end
+end)
+mp.register_script_message("sm-show", function() draw(true) end)
+mp.register_script_message("sm-hit", function(x, y) hit(tonumber(x), tonumber(y)) end)
+`
+const HIDE_PATH = '/tmp/session-meter-lofi-hide.lua'
+
 async function claudeWindow($: any): Promise<{ front: string; win: { x: number; y: number; w: number; h: number; screen: number; scale: number } | null } | null> {
   try {
     const r = await $.process.run(['/usr/bin/osascript', '-l', 'JavaScript', '-e', WIN_JS], { timeoutMs: 5000 })
@@ -341,12 +380,19 @@ async function openVideo($: any, t: Track) {
   const x = w.x + w.w - VW - VRIGHT
   const y = w.y + w.h - VH - VBOTTOM
   const sock = `/tmp/session-meter-lofi-video-${t.vid}-${nowMs}.sock`
+  // the hide button's script, written where mpv can load it
+  let hide = true
+  try {
+    const r = await $.process.run(['/bin/sh', '-c', 'cat > "$1"', 'sh', HIDE_PATH], { stdin: HIDE_LUA, timeoutMs: 5000 })
+    hide = r.exitCode === 0
+  } catch { hide = false }
   const argv = [
     mpv, '--no-config', '--no-audio', '--no-terminal', '--idle=no',
     '--border=no', `--ontop=${at.front === 'Claude' ? 'yes' : 'no'}`, '--title=lo-fi',
     `--screen=${w.screen}`, '--macos-geometry-calculation=whole', '--force-window-position',
     `--geometry=${px(VW)}x${px(VH)}+${px(x)}+${px(y)}`,
-    '--osc=no', '--osd-level=0', '--input-default-bindings=no', '--cursor-autohide=always',
+    '--osc=no', '--osd-level=0', '--input-default-bindings=no',
+    ...(hide ? [`--script=${HIDE_PATH}`] : []),
     '--macos-app-activation-policy=accessory',
     '--cache=yes', '--demuxer-max-bytes=32MiB', '--demuxer-readahead-secs=20',
     '--demuxer-lavf-o=live_start_index=-4,http_persistent=0',
