@@ -28,6 +28,8 @@ export const TRACKS: Track[] = [
 const WARM_FIRST = ['lofigirl', 'claude']
 const WARM_MAX = 3
 const LAST = 'lofiLast' // store: the id of the last pick
+const VOL = 'lofiVol' // store: the volume, 0..100 (mpv's scale is cubic: 60 is about -13 dB)
+export const DEFAULT_VOL = 60
 const watchUrl = (t: Track) => `https://www.youtube.com/watch?v=${t.vid}`
 
 // what plays now ('' for nothing), whether the menu is open, the thumbnails (data URIs);
@@ -37,7 +39,7 @@ const lofiMenu = atom({ plugin: 'session-meter', key: 'lofiMenu' } as const, fal
 const lofiThumbs = atom({ plugin: 'session-meter', key: 'lofiThumbs' } as const, {} as Record<string, string>)
 
 // toasts, in the strip's language (set by the hooks module)
-export const LOFI_MSG = { need: 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp', fail: 'Lo-fi did not start: the stream is unavailable' }
+export const LOFI_MSG = { need: 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp', fail: 'Lo-fi did not start: the stream is unavailable', vol: 'Lo-fi volume' }
 
 const PATH = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin'
 const URLS = 'lofiUrls' // store: vid -> { url, exp } (exp in seconds)
@@ -154,9 +156,17 @@ async function spawn($: any, t: Track, paused: boolean): Promise<Proc | null> {
   const nowMs = await $.clock.now()
   const direct = await cachedUrl($, t.vid, nowMs)
   const sock = `/tmp/session-meter-lofi-${t.vid}-${nowMs}.sock`
+  const vol = await getVolume($)
+  // Steady playback: start a few segments behind the live edge (a buffer from the
+  // first second), keep up to a minute read ahead, open a fresh connection for
+  // every segment (YouTube drops kept-alive ones) and reconnect when one breaks.
   const argv = [
     mpv, '--no-config', '--no-video', '--no-terminal', '--force-window=no', '--idle=no',
-    '--cache=yes', '--demuxer-max-bytes=4MiB', '--demuxer-lavf-o=live_start_index=-1',
+    `--volume=${vol}`,
+    '--cache=yes', '--cache-secs=60', '--demuxer-max-bytes=32MiB', '--demuxer-readahead-secs=30',
+    '--demuxer-lavf-o=live_start_index=-4,http_persistent=0',
+    '--stream-lavf-o=reconnect=1,reconnect_streamed=1,reconnect_delay_max=4',
+    '--cache-pause-wait=2',
     `--input-ipc-server=${sock}`,
     ...(paused ? ['--pause'] : []),
     ...(direct
@@ -202,20 +212,42 @@ async function kill(p: Proc | null | undefined) {
   try { await p?.stream?.return?.() } catch {}
 }
 
-// Unpauses a warm player through its socket (it may not exist for the first
-// instants after the start: tried for up to 3 s).
+// Sends one command to a player through its socket.
+async function send($: any, p: Proc, command: unknown[]) {
+  try {
+    const r = await $.process.run(['/usr/bin/nc', '-U', p.sock], { stdin: JSON.stringify({ command }) + '\n', timeoutMs: 2000 })
+    return r.exitCode === 0 && String(r.stdout).includes('success')
+  } catch {
+    return false
+  }
+}
+
+// Unpauses a warm player (its socket may not exist for the first instants
+// after the start: tried for up to 3 s).
 async function unpause($: any, p: Proc) {
   for (let i = 0; i < 15; i++) {
-    try {
-      const r = await $.process.run(['/usr/bin/nc', '-U', p.sock], {
-        stdin: '{"command":["set_property","pause",false]}\n',
-        timeoutMs: 2000,
-      })
-      if (r.exitCode === 0 && String(r.stdout).includes('success')) return true
-    } catch {}
+    if (await send($, p, ['set_property', 'pause', false])) return true
     await $.clock.sleep({ ms: 200 })
   }
   return false
+}
+
+export async function getVolume($: any) {
+  try {
+    const raw = await $.store.get(VOL)
+    const v = Number(raw)
+    return raw !== undefined && raw !== null && Number.isFinite(v) && v >= 0 && v <= 100 ? Math.round(v) : DEFAULT_VOL
+  } catch {
+    return DEFAULT_VOL
+  }
+}
+
+// Sets the volume (0..100), remembers it, and applies it to what is playing and warming.
+export async function setVolume($: any, v: number) {
+  const vol = Math.max(0, Math.min(100, Math.round(v)))
+  try { await $.store.set(VOL, vol) } catch {}
+  for (const p of [player, ...Object.values(warm)]) if (p) await send($, p, ['set_property', 'volume', vol])
+  return vol
 }
 
 async function coolDown() {

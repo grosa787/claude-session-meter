@@ -61,6 +61,8 @@ Pick one and it plays in the background – sound only, no window, no video. The
 
 The music starts the moment you pick: while the menu is open, the last stream you picked and the first two are already loading, paused, and the pick just unpauses one; the others start in two or three seconds. The previews load in the background as soon as a session starts (all at once, in about half a second), then the streams' addresses.
 
+Playback starts a few segments behind the live edge and keeps up to a minute read ahead, with a fresh connection per segment and automatic reconnects, so it does not stall. The volume starts at 60 (about −13 dB); change it with `/meter volume 0–100`.
+
 It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/yt-dlp); if they are missing, the button tells you to install them:
 
 ```
@@ -120,6 +122,7 @@ Every push to this repository is a new version. To get it, run `/plugin marketpl
 | `/meter` | Opens the stats card in a pane |
 | `/meter 1h` / `/meter 5m` | Sets the cache lifetime used for the countdown |
 | `/meter reset` | Resets the token counters |
+| `/meter volume 40` | Sets the lo‑fi volume, 0–100 (60 by default); applies at once and is remembered. `/meter volume` alone shows it |
 
 ## Good to know
 

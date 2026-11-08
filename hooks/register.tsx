@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Stats } from '../types'
-import { LOFI_MSG, TRACKS, pickLofi, prefetchLofi, pressLofi, resetLofi, thumbSvg } from './lofi'
+import { LOFI_MSG, TRACKS, getVolume, pickLofi, prefetchLofi, pressLofi, resetLofi, setVolume, thumbSvg } from './lofi'
 
 const PANE = 'session-meter'
 const empty: Stats = {
@@ -20,6 +20,7 @@ const lofiThumbs = atom({ plugin: 'session-meter', key: 'lofiThumbs' } as const,
 const BTN_W = 40 // room the Play button takes at the right of the strip
 LOFI_MSG.need = 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp'
 LOFI_MSG.fail = 'Lo-fi did not start: the stream is unavailable'
+LOFI_MSG.vol = 'Lo-fi volume'
 
 const n = (v: number) => v.toLocaleString('en-US')
 const ttlSec = (s: Stats) => (s.ttl === '1h' ? 3600 : 300)
@@ -711,7 +712,7 @@ export const register: Register = on => {
     void prefetchLofi($)
     await $.command.register({
       name: 'meter',
-      description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset',
+      description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset | volume 0-100',
     })
     // A resumed session starts with empty counters: read them back from the store.
     const saved = await loadTotals($)
@@ -831,6 +832,12 @@ export const register: Register = on => {
 
   on('command.run', { command: 'meter' }, async ($, e) => {
     const arg = String((e as { args?: string }).args ?? '').trim()
+    // /meter volume 40: the lo-fi volume, 0..100 (no number: show it)
+    const vm = arg.match(/^(?:volume|vol)\s*(\d{1,3})?$/i)
+    if (vm) {
+      const v = vm[1] !== undefined ? await setVolume($, Number(vm[1])) : await getVolume($)
+      return { text: `${LOFI_MSG.vol}: ${v}` }
+    }
     if (arg === '1h' || arg === '5m') {
       await update($, stats, s => ({ ...s, ttl: arg }))
     } else if (arg === 'reset') {
