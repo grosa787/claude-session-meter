@@ -29,6 +29,6 @@ export type Stats = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'session-meter': { stats: Shaped<Stats>; lofiTrack: string; lofiMenu: boolean; lofiThumbs: Record<string, string>; menuPage: string; dinoOpen: boolean; dinoBest: number }
+    'session-meter': { stats: Shaped<Stats>; lofiTrack: string; lofiMenu: boolean; lofiThumbs: Record<string, string> }
   }
 }

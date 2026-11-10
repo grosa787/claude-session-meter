@@ -71,10 +71,6 @@ It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/y
 brew install mpv yt-dlp
 ```
 
-### Dino game
-
-The **▶** menu has two pages, **Music** and **Games** – click the tabs at its top, or scroll the mouse wheel over it (down for games, up for music). On the games page is the **Dino** from Chrome's offline page: pick it and the game opens above the strip. Click the game to give it the keys, then **Space** or **↑** to jump and **↓** to duck; a click jumps too. Cacti come faster as you go, and pterodactyls join past 250 points. Your best score is kept across sessions; **✕** closes the game.
-
 ### Clodies
 
 Seven pixel Clodies live on the left of the strip, in an evenly spaced row.
