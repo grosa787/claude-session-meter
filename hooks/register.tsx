@@ -29,7 +29,6 @@ const T_WHEEL = 'scroll to switch'
 const T_DINO = 'Dino'
 const T_DINO_SUB = 'as in Chrome'
 const T_BEST = 'best'
-const T_CLOSE = 'Close game'
 
 // the dino card's picture: the dino on a strip of ground with a cactus
 const dinoCard = () => {
@@ -1108,13 +1107,12 @@ export const register: Register = on => {
       </Box>
     ) : hasBtn && game && t.Client ? (
       // the dino game, in the band above the strip
-      <Box borderStyle="round" borderColor={LINE} paddingX={1} flexDirection="column" width="100%">
-        <Box justifyContent="flex-end" height={1}>
-          <t.Button key="dino-close" plain label={T_CLOSE} onPress={() => { void update($, dinoOpen, () => false) }}>
-            <Text dimColor>✕</Text>
-          </t.Button>
-        </Box>
-        <t.Client key="dino" module="./dino.tsx" props={{ best, lang: GAME_LANG }} width="100%" height={9} />
+      // no frame and the close button beside it: the band stays short, so the strip below keeps its place
+      <Box width="100%" alignItems="flex-start" gap={1}>
+        <t.Client key="dino" module="./dino.tsx" props={{ best, lang: GAME_LANG }} flexGrow={1} height={9} />
+        <t.Button key="dino-close" plain onPress={() => { void update($, dinoOpen, () => false) }}>
+          <Text dimColor>✕</Text>
+        </t.Button>
       </Box>
     ) : null
     lastW = trackW

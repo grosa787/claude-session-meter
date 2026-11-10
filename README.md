@@ -73,7 +73,7 @@ brew install mpv yt-dlp
 
 ### Dino game
 
-The **▶** menu has two pages, **Music** and **Games** – click the tabs at its top, or scroll the mouse wheel over it (down for games, up for music). On the games page is the **Dino** from Chrome's offline page: pick it and the game opens above the strip. Click the game to give it the keys, then **Space** or **↑** to jump and **↓** to duck; a click jumps too. Cacti come faster as you go, and pterodactyls join past 250 points. Your best score is kept across sessions; **✕** closes the game.
+The **▶** menu has two pages, **Music** and **Games** – click the tabs at its top, or scroll the mouse wheel over it (down for games, up for music). On the games page is the **Dino** from Chrome's offline page: pick it and the game opens above the strip. Click the game to give it the keys, then **Space** or **↑** to jump and **↓** to duck; a click jumps too. It runs at 60 fps and draws 2×2 pixels per character cell (quadrant blocks), with a moon, twinkling stars, far hills and clouds moving at their own pace. Cacti come faster as you go, and pterodactyls join past 250 points: duck under the low ones. Your best score is kept across sessions; **✕** closes the game.
 
 ### Clodies
 
