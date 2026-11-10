@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { Stats } from '../types'
-import { LOFI_MSG, TRACKS, getVolume, pickLofi, prefetchLofi, pressLofi, resetLofi, setVideo, setVolume, thumbSvg, videoOn } from './lofi'
+import { LOFI_MSG, TRACKS, closeMenu, getVolume, pickLofi, prefetchLofi, pressLofi, resetLofi, setVideo, setVolume, thumbSvg, videoOn } from './lofi'
 
 const PANE = 'session-meter'
 const empty: Stats = {
@@ -17,6 +17,37 @@ const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
 const lofiTrack = atom({ plugin: 'session-meter', key: 'lofiTrack' } as const, '')
 const lofiMenu = atom({ plugin: 'session-meter', key: 'lofiMenu' } as const, false)
 const lofiThumbs = atom({ plugin: 'session-meter', key: 'lofiThumbs' } as const, {} as Record<string, string>)
+// the Play menu's page (music or games; the wheel turns it), whether the dino game is open, its best score
+const menuPage = atom({ plugin: 'session-meter', key: 'menuPage' } as const, 'music')
+const dinoOpen = atom({ plugin: 'session-meter', key: 'dinoOpen' } as const, false)
+const dinoBest = atom({ plugin: 'session-meter', key: 'dinoBest' } as const, 0)
+const DINO_BEST = 'dinoBest' // store key
+const GAME_LANG = 'en'
+const T_MUSIC = 'Music'
+const T_GAMES = 'Games'
+const T_WHEEL = 'scroll to switch'
+const T_DINO = 'Dino'
+const T_DINO_SUB = 'as in Chrome'
+const T_BEST = 'best'
+const T_CLOSE = 'Close game'
+
+// the dino card's picture: the dino on a strip of ground with a cactus
+const dinoCard = () => {
+  const D = ['      ####', '      #o##', '      ####', '      ##  ', '#    #### ', '##  ##### ', ' ####### #', '  #####   ', '   #  ##  ']
+  const C = ['  #  ', '# # #', '#####', '  #  ', '  #  ']
+  let px = ''
+  D.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== ' ') px += `<rect x="${12 + x * 2}" y="${7 + y * 2}" width="2" height="2" fill="${ch === 'o' ? '#1f1f1e' : '#e8e6df'}"/>`
+  }))
+  C.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === '#') px += `<rect x="${38 + x * 2}" y="${15 + y * 2}" width="2" height="2" fill="#8fbf7f"/>`
+  }))
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="32" viewBox="0 0 56 32">
+<clipPath id="dc"><rect width="56" height="32" rx="5"/></clipPath>
+<g clip-path="url(#dc)"><rect width="56" height="32" fill="#2a2a28"/>${px}<rect x="0" y="25" width="56" height="1" fill="#6b6a65"/></g>
+<rect x="0.5" y="0.5" width="55" height="31" rx="4.5" fill="none" stroke="#ffffff" stroke-opacity="0.12"/>
+</svg>`
+}
 const BTN_W = 40 // room the Play button takes at the right of the strip
 LOFI_MSG.need = 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp'
 LOFI_MSG.fail = 'Lo-fi did not start: the stream is unavailable'
@@ -710,6 +741,12 @@ export const register: Register = on => {
     // the streams' addresses and thumbnails are fetched in the background
     await resetLofi($)
     void prefetchLofi($)
+    await update($, dinoOpen, () => false)
+    await update($, menuPage, () => 'music')
+    try {
+      const best = Number((await $.store.get(DINO_BEST)) ?? 0)
+      if (best > 0) await update($, dinoBest, () => best)
+    } catch {}
     await $.command.register({
       name: 'meter',
       description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset | volume 0-100 | video on|off',
@@ -1020,8 +1057,29 @@ export const register: Register = on => {
       </Box>
     ) : null
     // the track menu, opened upwards above the button: thumbnail, name, channel
-    const menu = hasBtn && menuOpen ? (
-      <Box borderStyle="round" borderColor={LINE} paddingX={2} paddingY={1} gap={2} width="100%" justifyContent="space-between">
+    const page = await read($, menuPage)
+    const game = await read($, dinoOpen)
+    const best = await read($, dinoBest)
+    const tab = (id: string, label: string) => (
+      <t.Button key={`menu-tab-${id}`} plain onPress={() => { void update($, menuPage, () => id) }}>
+        <Text color={page === id ? ACCENT : undefined} dimColor={page !== id} bold={page === id}>{label}</Text>
+      </t.Button>
+    )
+    const games = (
+      <Box width="100%" gap={2} alignItems="center">
+        <Box key="game-dino" alignItems="center" gap={1}>
+          {t.Svg ? <t.Svg source={dinoCard()} alt={T_DINO} /> : null}
+          <Box flexDirection="column">
+            <t.Button key="game-dino-play" plain onPress={() => { void (async () => { await closeMenu($); await update($, dinoOpen, () => true) })() }}>
+              {T_DINO}
+            </t.Button>
+            <Text dimColor>{T_DINO_SUB}{best > 0 ? ` · ${T_BEST} ${best}` : ''}</Text>
+          </Box>
+        </Box>
+      </Box>
+    )
+    const music = (
+      <Box width="100%" gap={2} justifyContent="space-between">
         {Array.from({ length: Math.ceil(TRACKS.length / 2) }, (_, c) => (
           <Box key={`lofi-col-${c}`} flexDirection="column" gap={1}>
             {TRACKS.slice(c * 2, c * 2 + 2).map(tr => (
@@ -1037,6 +1095,26 @@ export const register: Register = on => {
             ))}
           </Box>
         ))}
+      </Box>
+    )
+    const menu = hasBtn && menuOpen ? (
+      <Box borderStyle="round" borderColor={LINE} paddingX={2} paddingY={1} flexDirection="column" gap={1} width="100%">
+        <Box gap={2} alignItems="center">
+          {tab('music', T_MUSIC)}
+          {tab('games', T_GAMES)}
+          <Text dimColor>· {T_WHEEL}</Text>
+        </Box>
+        {page === 'games' ? games : music}
+      </Box>
+    ) : hasBtn && game && t.Client ? (
+      // the dino game, in the band above the strip
+      <Box borderStyle="round" borderColor={LINE} paddingX={1} flexDirection="column" width="100%">
+        <Box justifyContent="flex-end" height={1}>
+          <t.Button key="dino-close" plain label={T_CLOSE} onPress={() => { void update($, dinoOpen, () => false) }}>
+            <Text dimColor>✕</Text>
+          </t.Button>
+        </Box>
+        <t.Client key="dino" module="./dino.tsx" props={{ best, lang: GAME_LANG }} width="100%" height={9} />
       </Box>
     ) : null
     lastW = trackW
@@ -1110,6 +1188,22 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
+  })
+
+  on('ui.scroll', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.origin.kind !== 'person' || !(await read($, lofiMenu))) return next(e)
+    const want = e.by > 0 ? 'games' : 'music'
+    if ((await read($, menuPage)) !== want) await update($, menuPage, () => want)
+    return {}
+  })
+
+  on('ui.message', async ($, e, next) => {
+    const best = Number((e.data as { best?: number } | null)?.best ?? 0)
+    if (e.element === 'dino' && best > (await read($, dinoBest))) {
+      await update($, dinoBest, () => best)
+      try { await $.store.set(DINO_BEST, best) } catch {}
+    }
+    return next(e)
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
