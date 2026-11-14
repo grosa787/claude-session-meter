@@ -81,7 +81,7 @@ The **▶** menu has two pages, **Music** and **Themes** – click the tabs at i
 | **Sakura** | blossoming cherry branches under a large moon: five-petal flowers, buds and young leaves, mist over far hills |
 | **Standard** | the app's own look |
 
-The pictures are still (the app draws them itself, so nothing redraws or flickers) and live in `themes/`. Your pick is remembered and set again in every new session.
+The pictures are still SVG scenes (no animation, the same on every redraw, so nothing restarts or flickers), under a light veil in the theme's color with no blur. Your pick is remembered and set again in every new session.
 
 ### Clodies
 

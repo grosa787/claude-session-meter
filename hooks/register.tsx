@@ -1161,6 +1161,14 @@ export const register: Register = on => {
     )
   })
 
+  // the backdrop of a theme picked here: a still picture, the same every time
+  on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
+    const th = THEMES.find(x => x.id === e.props.scene)
+    if (!th || e.props.plugin !== 'session-meter' || (e.surface !== 'desktop' && e.surface !== 'mobile')) return next(e)
+    const { Svg } = $.ui.resolve(e) as any
+    return <Svg source={th.scene} alt={th.alt} />
+  })
+
   // the wheel over the band while the Play menu is open turns its page
   on('ui.scroll', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.origin.kind !== 'person' || !(await read($, lofiMenu))) return next(e)
