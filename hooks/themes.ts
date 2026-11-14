@@ -41,7 +41,7 @@ export const THEMES: Theme[] = [
   },
   {
     id: 'sakura', name: 'Sakura', by: 'cherry blossom under the moon', scene: SAKURA, thumb: SAKURA_THUMB,
-    alt: 'Blossoming cherry branches in the top corners under a large moon, paper lanterns glowing, petals tumbling down',
+    alt: 'Blossoming cherry branches in the top corners under a large moon, mist over far hills',
     look: { colors: sakura.theme, backdrop: { scene: 'sakura', glass: veil('#1a1018') } },
   },
 ]
