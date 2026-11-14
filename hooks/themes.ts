@@ -51,8 +51,16 @@ const PICK = 'theme' // store key
 // Sets the theme by id ('' clears it), remembers the pick unless `remember` is false.
 export async function applyTheme($: any, id: string, remember = true) {
   const t = THEMES.find(x => x.id === id)
-  if (t) await $.theme.set(t.look)
-  else await $.theme.clear()
+  if (t) {
+    // say why when the app refuses the look, and keep at least its colors
+    try {
+      const res = await $.theme.set(t.look)
+      if (!res?.isDrawn && res?.reason) await $.ui.toast(`${t.name}: ${res.reason}`)
+    } catch (err) {
+      await $.ui.toast(`${t.name}: ${String((err as Error)?.message ?? err)}`)
+      try { await $.theme.set({ colors: t.look.colors }) } catch {}
+    }
+  } else await $.theme.clear()
   await update($, themeId, () => (t ? t.id : ''))
   if (remember) {
     try { await $.store.set(PICK, t ? t.id : '') } catch {}
