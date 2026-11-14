@@ -71,6 +71,18 @@ It plays through [mpv](https://mpv.io) with [yt-dlp](https://github.com/yt-dlp/y
 brew install mpv yt-dlp
 ```
 
+### Themes
+
+The **▶** menu has two pages, **Music** and **Themes** – click the tabs at its top, or scroll the mouse wheel over it (down for themes, up for music). A theme puts a moving scene behind the conversation and tints the whole app to match (Claude Code Desktop):
+
+| Theme | Scene |
+| --- | --- |
+| **Pixel Hill** | a pixel-art sunset: stars, drifting clouds, a pixel sun and little orange Clodies running along a green hill |
+| **Sakura** | blossoming cherry branches in the top corners at dusk, petals drifting down |
+| **Standard** | the app's own look |
+
+The scene stays sharp: the panels over it get only a light veil in the theme's color, no blur. Your pick is remembered and set again in every new session.
+
 ### Clodies
 
 Seven pixel Clodies live on the left of the strip, in an evenly spaced row.

@@ -3,6 +3,7 @@ import type { Register } from 'claude-code'
 
 import type { Stats } from '../types'
 import { LOFI_MSG, TRACKS, getVolume, pickLofi, prefetchLofi, pressLofi, resetLofi, setVideo, setVolume, thumbSvg, videoOn } from './lofi'
+import { THEMES, applyTheme, restoreTheme } from './themes'
 
 const PANE = 'session-meter'
 const empty: Stats = {
@@ -17,6 +18,16 @@ const stats = atom({ plugin: 'session-meter', key: 'stats' } as const, empty, {
 const lofiTrack = atom({ plugin: 'session-meter', key: 'lofiTrack' } as const, '')
 const lofiMenu = atom({ plugin: 'session-meter', key: 'lofiMenu' } as const, false)
 const lofiThumbs = atom({ plugin: 'session-meter', key: 'lofiThumbs' } as const, {} as Record<string, string>)
+// the Play menu's page (music or themes; the wheel turns it) and the theme picked ('' for the app's own)
+const menuPage = atom({ plugin: 'session-meter', key: 'menuPage' } as const, 'music')
+const themeId = atom({ plugin: 'session-meter', key: 'themeId' } as const, '')
+const T_MUSIC = 'Music'
+const T_THEMES = 'Themes'
+const T_WHEEL = 'scroll to switch'
+const T_STANDARD = 'Standard'
+const T_STANDARD_SUB = "the app's own"
+const T_ON = 'on'
+const THEME_NAMES: Record<string, [string, string]> = {}
 const BTN_W = 40 // room the Play button takes at the right of the strip
 LOFI_MSG.need = 'Lo-fi needs mpv and yt-dlp: brew install mpv yt-dlp'
 LOFI_MSG.fail = 'Lo-fi did not start: the stream is unavailable'
@@ -690,6 +701,9 @@ const loadTotals = async ($: any): Promise<Saved | null> => {
   }
 }
 
+// the "standard" card's picture: the app's own plain ground
+const STD_THUMB = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="50" viewBox="0 0 80 50"><rect width="80" height="50" rx="6" fill="#262624"/><rect x="8" y="9" width="16" height="32" rx="3" fill="#30302e"/><rect x="30" y="12" width="40" height="4" rx="2" fill="#4a4945"/><rect x="30" y="21" width="32" height="4" rx="2" fill="#3d3d3a"/><rect x="30" y="34" width="42" height="8" rx="4" fill="#30302e"/><rect x=".5" y=".5" width="79" height="49" rx="5.5" fill="none" stroke="#ffffff" stroke-opacity=".12"/></svg>`
+
 export const register: Register = on => {
   // Each Clodie's phase on the loop, in seconds (null: evenly spaced round it).
   // A run advances every phase by the same time, so the spacing is kept.
@@ -710,6 +724,8 @@ export const register: Register = on => {
     // the streams' addresses and thumbnails are fetched in the background
     await resetLofi($)
     void prefetchLofi($)
+    await update($, menuPage, () => 'music')
+    await restoreTheme($)
     await $.command.register({
       name: 'meter',
       description: 'Session cost, cache timer and token stats. Args: 1h | 5m | reset | volume 0-100 | video on|off',
@@ -1020,8 +1036,33 @@ export const register: Register = on => {
       </Box>
     ) : null
     // the track menu, opened upwards above the button: thumbnail, name, channel
-    const menu = hasBtn && menuOpen ? (
-      <Box borderStyle="round" borderColor={LINE} paddingX={2} paddingY={1} gap={2} width="100%" justifyContent="space-between">
+    const page = await read($, menuPage)
+    const theme = await read($, themeId)
+    const tab = (id: string, label: string) => (
+      <t.Button key={`menu-tab-${id}`} plain onPress={() => { void update($, menuPage, () => id) }}>
+        <Text color={page === id ? ACCENT : undefined} dimColor={page !== id} bold={page === id}>{label}</Text>
+      </t.Button>
+    )
+    // a theme card: its scene, small, beside its name; the picked one in the accent color
+    const themeCard = (id: string, name: string, sub: string, scene: string | null, alt: string) => (
+      <Box key={`theme-${id || 'std'}`} alignItems="center" gap={1}>
+        {t.Svg ? (scene ? <t.Svg source={scene} alt={alt} width={80} height={50} /> : <t.Svg source={STD_THUMB} alt={T_STANDARD} width={80} height={50} />) : null}
+        <Box flexDirection="column">
+          <t.Button key={`theme-pick-${id || 'std'}`} plain onPress={() => { void applyTheme($, id) }}>
+            <Text color={theme === id ? ACCENT : undefined}>{name}</Text>
+          </t.Button>
+          <Text dimColor>{theme === id ? `${sub} · ${T_ON}` : sub}</Text>
+        </Box>
+      </Box>
+    )
+    const themes = (
+      <Box width="100%" gap={3} alignItems="center">
+        {themeCard('', T_STANDARD, T_STANDARD_SUB, null, T_STANDARD)}
+        {THEMES.map(th => themeCard(th.id, THEME_NAMES[th.id]?.[0] ?? th.name, THEME_NAMES[th.id]?.[1] ?? th.by, th.scene, th.alt))}
+      </Box>
+    )
+    const music = (
+      <Box width="100%" gap={2} justifyContent="space-between">
         {Array.from({ length: Math.ceil(TRACKS.length / 2) }, (_, c) => (
           <Box key={`lofi-col-${c}`} flexDirection="column" gap={1}>
             {TRACKS.slice(c * 2, c * 2 + 2).map(tr => (
@@ -1037,6 +1078,16 @@ export const register: Register = on => {
             ))}
           </Box>
         ))}
+      </Box>
+    )
+    const menu = hasBtn && menuOpen ? (
+      <Box borderStyle="round" borderColor={LINE} paddingX={2} paddingY={1} flexDirection="column" gap={1} width="100%">
+        <Box gap={2} alignItems="center">
+          {tab('music', T_MUSIC)}
+          {tab('themes', T_THEMES)}
+          <Text dimColor>· {T_WHEEL}</Text>
+        </Box>
+        {page === 'themes' ? themes : music}
       </Box>
     ) : null
     lastW = trackW
@@ -1110,6 +1161,22 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
+  })
+
+  // the backdrop of a theme picked here
+  on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
+    const th = THEMES.find(x => x.id === e.props.scene)
+    if (!th || e.props.plugin !== 'session-meter' || (e.surface !== 'desktop' && e.surface !== 'mobile')) return next(e)
+    const { Svg } = $.ui.resolve(e) as any
+    return <Svg source={th.scene} alt={th.alt} isInteractive />
+  })
+
+  // the wheel over the band while the Play menu is open turns its page
+  on('ui.scroll', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.origin.kind !== 'person' || !(await read($, lofiMenu))) return next(e)
+    const want = e.by > 0 ? 'themes' : 'music'
+    if ((await read($, menuPage)) !== want) await update($, menuPage, () => want)
+    return {}
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
