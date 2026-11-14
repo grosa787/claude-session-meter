@@ -23,7 +23,6 @@ const menuPage = atom({ plugin: 'session-meter', key: 'menuPage' } as const, 'mu
 const themeId = atom({ plugin: 'session-meter', key: 'themeId' } as const, '')
 const T_MUSIC = 'Music'
 const T_THEMES = 'Themes'
-const T_WHEEL = 'scroll to switch'
 const T_STANDARD = 'Standard'
 const T_STANDARD_SUB = "the app's own"
 const T_ON = 'on'
@@ -1058,7 +1057,7 @@ export const register: Register = on => {
     const themes = (
       <Box width="100%" gap={3} alignItems="center">
         {themeCard('', T_STANDARD, T_STANDARD_SUB, null, T_STANDARD)}
-        {THEMES.map(th => themeCard(th.id, THEME_NAMES[th.id]?.[0] ?? th.name, THEME_NAMES[th.id]?.[1] ?? th.by, th.scene, th.alt))}
+        {THEMES.map(th => themeCard(th.id, THEME_NAMES[th.id]?.[0] ?? th.name, THEME_NAMES[th.id]?.[1] ?? th.by, th.thumb, th.alt))}
       </Box>
     )
     const music = (
@@ -1085,7 +1084,6 @@ export const register: Register = on => {
         <Box gap={2} alignItems="center">
           {tab('music', T_MUSIC)}
           {tab('themes', T_THEMES)}
-          <Text dimColor>· {T_WHEEL}</Text>
         </Box>
         {page === 'themes' ? themes : music}
       </Box>

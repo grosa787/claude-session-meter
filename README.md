@@ -77,8 +77,8 @@ The **▶** menu has two pages, **Music** and **Themes** – click the tabs at i
 
 | Theme | Scene |
 | --- | --- |
-| **Pixel Hill** | a pixel-art sunset: stars, drifting clouds, a pixel sun and little orange Clodies running along a green hill |
-| **Sakura** | blossoming cherry branches in the top corners at dusk, petals drifting down |
+| **Pixel Hill** | a dithered pixel-art sunset: a striped sun sinking behind snowy violet mountains, pine hills, a lake with a shimmering sun path, a cottage whose window glows and chimney smokes, fireflies, a flock of birds, and little orange Clodies running along the meadow path |
+| **Sakura** | blossoming cherry branches under a large moon: five-petal flowers, buds and young leaves, paper lanterns swaying and glowing, petals tumbling down in three depths, pollen glinting, mist over far hills |
 | **Standard** | the app's own look |
 
 The scene stays sharp: the panels over it get only a light veil in the theme's color, no blur. Your pick is remembered and set again in every new session.

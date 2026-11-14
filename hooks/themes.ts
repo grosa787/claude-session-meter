@@ -7,8 +7,9 @@ import type { ThemeSetArgs } from 'claude-code'
 import { makeColors } from './make-colors.js'
 import PIXEL from './scenes/pixel'
 import SAKURA from './scenes/sakura'
+import { PIXEL_THUMB, SAKURA_THUMB } from './scenes/thumbs'
 
-export type Theme = { id: string; name: string; by: string; scene: string; alt: string; look: ThemeSetArgs }
+export type Theme = { id: string; name: string; by: string; scene: string; thumb: string; alt: string; look: ThemeSetArgs }
 
 // no blur: the scene stays sharp; a light veil in the theme's ground color keeps text readable
 const veil = (tint: string) => ({ blur: 0, tint, opacity: 0.35 })
@@ -34,13 +35,13 @@ const sakura = makeColors({
 
 export const THEMES: Theme[] = [
   {
-    id: 'pixel-hill', name: 'Pixel Hill', by: 'pixel sunset', scene: PIXEL,
-    alt: 'A pixel-art sunset over a green hill, with clouds drifting and small orange creatures running along it',
+    id: 'pixel-hill', name: 'Pixel Hill', by: 'pixel sunset by a lake', scene: PIXEL, thumb: PIXEL_THUMB,
+    alt: 'A pixel-art sunset: the sun sinking behind violet mountains, a lake, a cottage with a glowing window, and small orange creatures running along a meadow path',
     look: { colors: pixel.theme, backdrop: { scene: 'pixel-hill', glass: veil('#141026') } },
   },
   {
-    id: 'sakura', name: 'Sakura', by: 'cherry blossom', scene: SAKURA,
-    alt: 'Blossoming cherry branches in the top corners at dusk, petals drifting down',
+    id: 'sakura', name: 'Sakura', by: 'cherry blossom under the moon', scene: SAKURA, thumb: SAKURA_THUMB,
+    alt: 'Blossoming cherry branches in the top corners under a large moon, paper lanterns glowing, petals tumbling down',
     look: { colors: sakura.theme, backdrop: { scene: 'sakura', glass: veil('#1a1018') } },
   },
 ]
