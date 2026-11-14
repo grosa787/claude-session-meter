@@ -73,15 +73,15 @@ brew install mpv yt-dlp
 
 ### Themes
 
-The **▶** menu has two pages, **Music** and **Themes** – click the tabs at its top, or scroll the mouse wheel over it (down for themes, up for music). A theme puts a moving scene behind the conversation and tints the whole app to match (Claude Code Desktop):
+The **▶** menu has two pages, **Music** and **Themes** – click the tabs at its top, or scroll the mouse wheel over it (down for themes, up for music). A theme puts a picture behind the conversation and tints the whole app to match (Claude Code Desktop):
 
 | Theme | Scene |
 | --- | --- |
-| **Pixel Hill** | a dithered pixel-art sunset: a striped sun sinking behind snowy violet mountains, pine hills, a lake with a shimmering sun path, a cottage whose window glows and chimney smokes, fireflies, a flock of birds, and little orange Clodies running along the meadow path |
-| **Sakura** | blossoming cherry branches under a large moon: five-petal flowers, buds and young leaves on gently swaying branches, mist over far hills |
+| **Pixel Hill** | a dithered pixel-art sunset: a striped sun sinking behind snowy violet mountains, pine hills, a lake with the sun's path on it, a cottage with a lit window and a smoking chimney, fireflies, and the little orange Clodies on the meadow path |
+| **Sakura** | blossoming cherry branches under a large moon: five-petal flowers, buds and young leaves, mist over far hills |
 | **Standard** | the app's own look |
 
-The scene stays sharp: the panels over it get only a light veil in the theme's color, no blur. Your pick is remembered and set again in every new session.
+The pictures are still (the app draws them itself, so nothing redraws or flickers) and live in `themes/`. Your pick is remembered and set again in every new session.
 
 ### Clodies
 

@@ -1,18 +1,16 @@
-// Themes the Play menu offers: a moving scene behind the conversation and the
-// app's colors to match, set with $.theme.set. The pick is kept in the store and
+// Themes the Play menu offers: a picture behind the conversation and the app's
+// colors to match, set with $.theme.set. The picture is a still ground the app
+// draws itself (no hook, nothing redrawn, so nothing flickers); it is a frame of
+// the scene from the backdrop gallery, in themes/. The pick is kept in the store and
 // set again at every session's start. "Standard" clears the theme (the app's own).
 import { atom, update } from 'claude-code'
 import type { ThemeSetArgs } from 'claude-code'
 
 import { makeColors } from './make-colors.js'
-import PIXEL from './scenes/pixel'
-import SAKURA from './scenes/sakura'
 import { PIXEL_THUMB, SAKURA_THUMB } from './scenes/thumbs'
 
-export type Theme = { id: string; name: string; by: string; scene: string; thumb: string; alt: string; look: ThemeSetArgs }
+export type Theme = { id: string; name: string; by: string; thumb: string; alt: string; look: ThemeSetArgs }
 
-// no blur: the scene stays sharp; a light veil in the theme's ground color keeps text readable
-const veil = (tint: string) => ({ blur: 0, tint, opacity: 0.35 })
 
 const pixel = makeColors({
   label: 'Pixel Hill',
@@ -35,14 +33,14 @@ const sakura = makeColors({
 
 export const THEMES: Theme[] = [
   {
-    id: 'pixel-hill', name: 'Pixel Hill', by: 'pixel sunset by a lake', scene: PIXEL, thumb: PIXEL_THUMB,
+    id: 'pixel-hill', name: 'Pixel Hill', by: 'pixel sunset by a lake', thumb: PIXEL_THUMB,
     alt: 'A pixel-art sunset: the sun sinking behind violet mountains, a lake, a cottage with a glowing window, and small orange creatures running along a meadow path',
-    look: { colors: pixel.theme, backdrop: { scene: 'pixel-hill', glass: veil('#141026') } },
+    look: { colors: pixel.theme, backdrop: { image: { source: 'themes/pixel.png' } } },
   },
   {
-    id: 'sakura', name: 'Sakura', by: 'cherry blossom under the moon', scene: SAKURA, thumb: SAKURA_THUMB,
+    id: 'sakura', name: 'Sakura', by: 'cherry blossom under the moon', thumb: SAKURA_THUMB,
     alt: 'Blossoming cherry branches in the top corners under a large moon, mist over far hills',
-    look: { colors: sakura.theme, backdrop: { scene: 'sakura', glass: veil('#1a1018') } },
+    look: { colors: sakura.theme, backdrop: { image: { source: 'themes/sakura.jpg' } } },
   },
 ]
 

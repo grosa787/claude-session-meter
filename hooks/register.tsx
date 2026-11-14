@@ -1161,18 +1161,6 @@ export const register: Register = on => {
     )
   })
 
-  // the backdrop of a theme picked here. The app draws it afresh on many redraws,
-  // which would start every animation over (the Clodies never get far, the
-  // branches jerk back): the scene's animations run on --t0, set here from the
-  // wall clock, so a fresh copy carries on where the last one was.
-  on('ui.render', { component: 'Backdrop' }, async ($, e, next) => {
-    const th = THEMES.find(x => x.id === e.props.scene)
-    if (!th || e.props.plugin !== 'session-meter' || (e.surface !== 'desktop' && e.surface !== 'mobile')) return next(e)
-    const { Svg } = $.ui.resolve(e) as any
-    const t0 = ((await $.clock.now()) / 1000) % 86400
-    return <Svg source={th.scene.replace('<svg ', `<svg style="--t0:-${t0.toFixed(2)}s" `)} alt={th.alt} isInteractive />
-  })
-
   // the wheel over the band while the Play menu is open turns its page
   on('ui.scroll', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.origin.kind !== 'person' || !(await read($, lofiMenu))) return next(e)
